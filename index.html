@@ -304,7 +304,7 @@ const VT = ['C', 'AN', 'AW', 'M'];
 const VT_LABEL = { C: 'Type C (Big Bus)', AN: 'Type A – no wheelchair', AW: 'Type A – wheelchair', M: 'Minivan' };
 const VT_SHORT = { C: 'Type C', AN: 'A non-WC', AW: 'A WC', M: 'Minivan' };
 const VT_COLOR = { C: '#5b6b7f', AN: '#1f6feb', AW: '#7c3aed', M: '#0e9f9e' };
-const STORAGE_KEY = 'routeCapacityState.v3';
+const STORAGE_KEY = 'routeCapacityState.v4';
 
 function defaultRules() {
   return {
@@ -315,16 +315,23 @@ function defaultRules() {
 function defaultState() {
   return {
     depots: [
-      { name: 'Brooklyn', capacity: 250, allowC: false },
-      { name: 'Queens', capacity: 150, allowC: true },
+      { name: 'Brooklyn', capacity: 275, allowC: false },
+      { name: 'Queens', capacity: 300, allowC: true },
       { name: 'Bronx | Zerega', capacity: 150, allowC: true },
       { name: 'Bronx | Conner', capacity: 100, allowC: true },
       { name: 'SI – Richmond', capacity: 150, allowC: false },
       { name: 'SI – Sharrots', capacity: 100, allowC: false },
     ],
-    staff: { drivers: 700, attendants: 700, sparePct: 0, avgDrOut: 0, avgAtOut: 0 },
-    vehicles: { C: { present: 180, sparePct: 0, avgOut: 0 }, AN: { present: 600, sparePct: 0, avgOut: 0 }, AW: { present: 40, sparePct: 0, avgOut: 0 }, M: { present: 7, sparePct: 0, avgOut: 0 } },
-    pipeline: {},
+    staff: { drivers: 884, attendants: 887, sparePct: 0, avgDrOut: 5, avgAtOut: 5 },
+    vehicles: { C: { present: 183, sparePct: 0, avgOut: 2 }, AN: { present: 633, sparePct: 0, avgOut: 2 }, AW: { present: 36, sparePct: 0, avgOut: 1 }, M: { present: 7, sparePct: 0, avgOut: 1 } },
+    pipeline: {
+      '2026-09-21': { ANIn: 21, drIn: 5, atIn: 5 },
+      '2026-09-28': { ANIn: 20, drIn: 5, atIn: 5 },
+      '2026-10-05': { ANIn: 10, drIn: 5, atIn: 5 },
+      '2026-10-12': { drIn: 5, atIn: 5 },
+      '2026-10-19': { drIn: 5, atIn: 5 },
+      '2026-10-26': { drIn: 5, atIn: 5 },
+    },
     routes: [
       { date: '2026-09-01', C: 0, AN: 28, AW: 3, M: 0 }, { date: '2026-09-09', C: 0, AN: 26, AW: 0, M: 0 }, { date: '2026-09-10', C: 173, AN: 551, AW: 20, M: 7 },
       { date: '2026-09-11', C: 0, AN: 9, AW: 1, M: 0 }, { date: '2026-09-14', C: 2, AN: 10, AW: 3, M: 0 }, { date: '2026-09-15', C: 0, AN: 6, AW: 0, M: 0 },
