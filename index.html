@@ -58,6 +58,14 @@
   .stat .v { font-size: 20px; font-weight: 700; }
   .stat .k { font-size: 12px; color: var(--muted); }
   .stat .note { font-size: 11px; color: var(--muted); margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); white-space: normal; }
+  .stat.rules-card { grid-column: span 2; }
+  .stat.rules-card .v { font-size: 13px; font-weight: 600; }
+  .stat .rule { display: flex; gap: 6px; align-items: baseline; line-height: 1.4; white-space: normal; }
+  .stat .rule .mark { font-weight: 700; width: 14px; flex: none; }
+  .stat .rule.on .mark { color: var(--ok); }
+  .stat .rule.off { color: var(--muted); }
+  .stat .rule.off .mark { color: var(--bad); }
+  .stat .note .rule { font-weight: normal; }
   .stat .note .spare { display: inline-block; background: #e0f2fe; color: #075985; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
   .toolbar { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin: 6px 0 10px; }
   .toolbar label.chk { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); padding-bottom: 6px; }
@@ -761,6 +769,17 @@ function renderResults(res) {
     stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok', spareNote(num(state.staff.sparePct) + '%')),
     stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok', vehSpareNote));
   if (peak && peak.shortfall > 0 && peak.date !== last.date && peak.shortfall > last.shortfall) sum.append(stat('Peak shortfall', peak.shortfall + ' on ' + fmt(peak.date), 'bad'));
+  // Rules card: which admin rules are on / off
+  const R = state.rules;
+  const ruleLine = (on, label) => h('div', { class: 'rule ' + (on ? 'on' : 'off') }, h('span', { class: 'mark' }, on ? '✓' : '✕'), label);
+  const crossCovers = []; for (const v of VT) for (const r of VT) if (v !== r) crossCovers.push({ v, r, on: !!(R.can[v] && R.can[v][r]) });
+  const onCovers = crossCovers.filter(x => x.on), offCovers = crossCovers.filter(x => !x.on);
+  sum.append(h('div', { class: 'stat rules-card' },
+    h('div', { class: 'v' }, ruleLine(R.attendantRequired, 'Attendant required on every route'), ruleLine(R.enforceParking, 'Parking capacity enforced'), ruleLine(R.cumulativeDemand, 'Routes keep running after start')),
+    h('div', { class: 'k' }, 'Rules in effect (Admin)'),
+    h('div', { class: 'note' },
+      h('div', { class: 'rule on' }, h('span', { class: 'mark' }, '✓'), 'Substitutions on: ' + (onCovers.length ? onCovers.map(x => VT_SHORT[x.v] + ' → ' + VT_SHORT[x.r] + ' routes').join(', ') : 'none')),
+      h('div', { class: 'rule off' }, h('span', { class: 'mark' }, '✕'), 'Off: ' + (offCovers.length ? offCovers.map(x => VT_SHORT[x.v] + ' → ' + VT_SHORT[x.r]).join(', ') : 'none')))));
   const overflowWeeks = res.weeks.filter(w => res.supply[w].overflow > 0);
   if (overflowWeeks.length) notices.append(h('div', { class: 'notice' }, 'Parking capacity exceeded in ' + overflowWeeks.length + ' week(s): up to ' + Math.max(...overflowWeeks.map(w => res.supply[w].overflow)) + ' vehicle(s) cannot be parked and are excluded from the fleet.'));
 
