@@ -109,8 +109,14 @@
   table.results .sub.bad { color: var(--bad); }
   table.results td.gap { white-space: normal; max-width: 240px; font-weight: normal; font-size: 13px; }
   table.results td.gap .gap-block { margin-bottom: 4px; }
-  table.results td.gap .gap-block div { color: var(--bad); font-weight: 600; }
-  table.results td.gap .gap-block div.ok { color: var(--ok); font-weight: normal; }
+  table.results td.gap { max-width: 320px; }
+  table.results td.gap .gap-block div { color: var(--bad); font-weight: normal; }
+  table.results td.gap .gap-block div.ok { color: var(--ok); }
+  .stat .v .lines div { line-height: 1.25; }
+  .stat .v .lines { font-size: 17px; }
+  /* pinned header row: wrapper must not be a scroll container */
+  .results-wrap { overflow: visible; }
+  table.results thead th { position: sticky; top: var(--hdr-h, 88px); z-index: 5; box-shadow: inset 0 -1px 0 var(--border), inset 1px 0 0 var(--border); }
   table.results td.gap .gap-title { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
   .pill { display: inline-block; min-width: 46px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 13px; }
   .pill.bad { background: #fdecea; color: var(--bad); }
@@ -136,6 +142,7 @@
   #report th, #report td { padding: 3px 6px; }
   #report .caret, #report .legend .muted, #report .toolbar, #report .intro { display: none; }
   #report tr { page-break-inside: avoid; }
+  #report table.results thead th { position: static; }
   #report .summary { grid-template-columns: repeat(6, 1fr); }
   #report .stat .v { font-size: 16px; }
   #report .rep-actions { margin-bottom: 12px; display: flex; gap: 8px; }
@@ -182,7 +189,7 @@
         <label class="chk" style="margin-left:auto"><input type="checkbox" id="allDays"> Show every calendar day when expanded</label>
       </div>
       <div id="chartWrap" class="chart"></div>
-      <div class="scroll"><table id="resultTable" class="results"></table></div>
+      <div class="results-wrap"><table id="resultTable" class="results"></table></div>
     </section>
     <section class="card">
       <h2>Inputs, assumptions &amp; rules behind these numbers <span class="hint">read-only summary of what each owner entered; edit on their tabs</span></h2>
@@ -663,25 +670,27 @@ function renderResults(res) {
   const peak = shown.reduce((m, d) => d.shortfall > m.shortfall ? d : m, shown[0]);
   const stat = (k, v, c) => h('div', { class: 'stat' }, h('div', { class: 'v ' + (c || '') }, v), h('div', { class: 'k' }, k));
   const g = last.gap;
-  const gapVeh = VT.filter(t => g.vehicles[t]).map(t => '+' + g.vehicles[t] + ' ' + VT_SHORT[t]).join(', ');
-  const gapStaff = [g.drivers ? '+' + g.drivers + ' drivers' : '', g.attendants ? '+' + g.attendants + ' attendants' : ''].filter(Boolean).join(', ');
+  const gapVeh = VT.filter(t => g.vehicles[t]).map(t => '+' + g.vehicles[t] + ' ' + VT_SHORT[t]);
+  const gapStaff = [g.drivers ? '+' + g.drivers + ' drivers' : '', g.attendants ? '+' + g.attendants + ' attendants' : ''].filter(Boolean);
+  const lines = arr => arr.length ? h('div', { class: 'lines' }, ...arr.map(x => h('div', {}, x))) : 'None';
   sum.append(
     stat('Routes needed by ' + fmt(res.endDate), last.totalDemand),
     stat('Serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('First shortfall date', firstShort ? fmtDow(firstShort.date) : 'None', firstShort ? 'bad' : 'ok'),
-    stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', gapStaff || 'None', gapStaff ? 'bad' : 'ok'),
-    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', gapVeh || 'None', gapVeh ? 'bad' : 'ok'));
+    stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok'),
+    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok'));
   if (peak && peak.shortfall > 0 && peak.date !== last.date && peak.shortfall > last.shortfall) sum.append(stat('Peak shortfall', peak.shortfall + ' on ' + fmt(peak.date), 'bad'));
   const overflowWeeks = res.weeks.filter(w => res.supply[w].overflow > 0);
   if (overflowWeeks.length) notices.append(h('div', { class: 'notice' }, 'Parking capacity exceeded in ' + overflowWeeks.length + ' week(s): up to ' + Math.max(...overflowWeeks.map(w => res.supply[w].overflow)) + ' vehicle(s) cannot be parked and are excluded from the fleet.'));
 
   renderChart(weeks);
 
-  tbl.append(h('tr', {},
+  tbl.append(h('thead', {}, h('tr', {},
     TH('Week / date', HELP.period, 'l'), TH('New routes', HELP.newRoutes), TH('Routes needed', HELP.needed), TH('Usable vehicles', HELP.vehicles),
     TH(state.rules.attendantRequired ? 'Staff crews' : 'Drivers', state.rules.attendantRequired ? HELP.staff : HELP.staffDriversOnly),
-    TH('Serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l')));
+    TH('Serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l'))));
+  const tbody = h('tbody', {}); tbl.append(tbody);
 
   const cells = (r, added) => {
     const s = r.supply;
@@ -692,7 +701,7 @@ function renderResults(res) {
     if (gg.depot) vehLines.push('+' + gg.depot + ' parking spaces');
     if (gg.drivers) staffLines.push('+' + gg.drivers + ' drivers');
     if (gg.attendants) staffLines.push('+' + gg.attendants + ' attendants');
-    const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' }, h('span', { class: 'gap-title', style: 'color:' + color }, title), lines.length ? lines.map(x => h('div', {}, x)) : h('div', { class: 'ok' }, 'none needed'));
+    const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' }, h('span', { class: 'gap-title', style: 'color:' + color }, title), lines.length ? h('div', {}, lines.join(' / ')) : h('div', { class: 'ok' }, 'none needed'));
     return [
       h('td', {}, newTotal ? h('span', {}, String(newTotal), h('span', { class: 'sub' }, splitText(added))) : h('span', { class: 'muted' }, '–')),
       h('td', {}, h('span', { class: 'big' }, r.totalDemand), h('span', { class: 'sub' }, splitText(r.demand))),
@@ -701,17 +710,17 @@ function renderResults(res) {
       h('td', {}, h('span', { class: 'big' }, r.serviceable)),
       h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a vehicle: ' + splitText(r.unserved)) : null),
       h('td', {}, h('span', { class: 'pill ' + (sShort > 0 ? 'bad' : 'ok') }, sShort > 0 ? '−' + sShort : 'OK'), sShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a ' + (state.rules.attendantRequired ? 'crew' : 'driver')) : null),
-      h('td', { class: 'l gap' }, gapBlock('Vehicles (CFFO)', vehLines, '#1f6feb'), gapBlock('Staff (CHRO)', staffLines, '#b35c00')),
+      h('td', { class: 'l gap' }, gapBlock('Vehicles (CFFO)', vehLines, '#1f6feb'), gapBlock('Staff (CHRO)', staffLines, '#7c3aed')),
     ];
   };
   for (const w of weeks) {
     const open = !!state.expanded[w.week];
-    tbl.append(h('tr', { class: 'wk', onclick: () => { if (open) delete state.expanded[w.week]; else state.expanded[w.week] = true; update(); } },
+    tbody.append(h('tr', { class: 'wk', onclick: () => { if (open) delete state.expanded[w.week]; else state.expanded[w.week] = true; update(); } },
       h('td', { class: 'l' }, h('span', { class: 'caret' }, open ? '▾' : '▸'), fmt(w.week) + ' – ' + fmt(w.weekEnd)), ...cells(w, w.weekAdded)));
     if (open) for (const d of w.days) {
       if (d.date < from) continue;
       if (!state.allDays && !d.hasNew && d.date !== d.week) continue;
-      tbl.append(h('tr', { class: 'day' }, h('td', { class: 'l' }, fmtDow(d.date)), ...cells(d, d.added)));
+      tbody.append(h('tr', { class: 'day' }, h('td', { class: 'l' }, fmtDow(d.date)), ...cells(d, d.added)));
     }
   }
 }
@@ -861,6 +870,9 @@ function openReport(print) { buildReport(); document.body.classList.add('printin
 function closeReport() { document.body.classList.remove('printing'); const r = el('report'); if (r) r.remove(); }
 
 /* ---------------- Wiring ---------------- */
+function setHeaderHeight() { document.documentElement.style.setProperty('--hdr-h', document.querySelector('header').offsetHeight + 'px'); }
+window.addEventListener('resize', setHeaderHeight);
+setHeaderHeight();
 document.querySelectorAll('nav.tabs-nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 el('drivers').addEventListener('input', e => { state.staff.drivers = e.target.value; update(); });
 el('attendants').addEventListener('input', e => { state.staff.attendants = e.target.value; update(); });
