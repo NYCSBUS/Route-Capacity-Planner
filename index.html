@@ -57,6 +57,8 @@
   .stat { background: var(--head); border-radius: 6px; padding: 8px 10px; }
   .stat .v { font-size: 20px; font-weight: 700; }
   .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .note { font-size: 11px; color: var(--muted); margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); white-space: normal; }
+  .stat .note .spare { display: inline-block; background: #e0f2fe; color: #075985; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
   .toolbar { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin: 6px 0 10px; }
   .toolbar label.chk { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); padding-bottom: 6px; }
   .scroll { overflow-x: auto; }
@@ -678,7 +680,10 @@ function renderResults(res) {
   const last = shown[shown.length - 1] || res.days[res.days.length - 1];
   const firstShort = shown.find(d => d.shortfall > 0);
   const peak = shown.reduce((m, d) => d.shortfall > m.shortfall ? d : m, shown[0]);
-  const stat = (k, v, c) => h('div', { class: 'stat' }, h('div', { class: 'v ' + (c || '') }, v), h('div', { class: 'k' }, k));
+  const stat = (k, v, c, note) => h('div', { class: 'stat' }, h('div', { class: 'v ' + (c || '') }, v), h('div', { class: 'k' }, k), note ? h('div', { class: 'note' }, note) : null);
+  const vSpares = VT.map(t => num(state.vehicles[t].sparePct));
+  const spareNote = txt => h('span', {}, 'Spare factor: ', h('span', { class: 'spare' }, txt));
+  const vehSpareNote = spareNote(vSpares.every(x => x === vSpares[0]) ? vSpares[0] + '% all types' : VT.map(t => num(state.vehicles[t].sparePct) + '% ' + VT_SHORT[t]).join(' · '));
   const g = last.gap;
   const gapVeh = VT.filter(t => g.vehicles[t]).map(t => '+' + g.vehicles[t] + ' ' + VT_SHORT[t]);
   const gapStaff = [g.drivers ? '+' + g.drivers + ' drivers' : '', g.attendants ? '+' + g.attendants + ' attendants' : ''].filter(Boolean);
@@ -688,10 +693,8 @@ function renderResults(res) {
     stat('Serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('First shortfall date', firstShort ? fmtDow(firstShort.date) : 'None', firstShort ? 'bad' : 'ok'),
-    stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok'),
-    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok'),
-    stat('Spare factor – staff (CHRO)', num(state.staff.sparePct) + '%'),
-    stat('Spare factor – vehicles (CFFO)', lines(VT.map(t => num(state.vehicles[t].sparePct) + '% ' + VT_SHORT[t]))));
+    stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok', spareNote(num(state.staff.sparePct) + '%')),
+    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok', vehSpareNote));
   if (peak && peak.shortfall > 0 && peak.date !== last.date && peak.shortfall > last.shortfall) sum.append(stat('Peak shortfall', peak.shortfall + ' on ' + fmt(peak.date), 'bad'));
   const overflowWeeks = res.weeks.filter(w => res.supply[w].overflow > 0);
   if (overflowWeeks.length) notices.append(h('div', { class: 'notice' }, 'Parking capacity exceeded in ' + overflowWeeks.length + ' week(s): up to ' + Math.max(...overflowWeeks.map(w => res.supply[w].overflow)) + ' vehicle(s) cannot be parked and are excluded from the fleet.'));
