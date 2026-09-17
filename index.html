@@ -581,7 +581,10 @@ function TH(label, help, cls) {
   else th.append(label);
   return th;
 }
-const splitText = (obj, filterZero = true) => VT.filter(t => !filterZero || obj[t]).map(t => obj[t] + ' ' + VT_SHORT[t]).join(' · ');
+const splitArr = (obj, filterZero = true) => VT.filter(t => !filterZero || obj[t]).map(t => obj[t] + ' ' + VT_SHORT[t]);
+const splitText = (obj, filterZero = true) => splitArr(obj, filterZero).join(' · ');
+// one line per item, for table sub-text
+const subLines = (arr, cls) => h('span', { class: 'sub' + (cls ? ' ' + cls : '') }, ...arr.map(x => h('div', {}, x)));
 const crewWord = () => state.rules.attendantRequired ? 'crews' : 'drivers';
 
 /* ---------------- Input rendering ---------------- */
@@ -686,7 +689,9 @@ function renderResults(res) {
     stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('First shortfall date', firstShort ? fmtDow(firstShort.date) : 'None', firstShort ? 'bad' : 'ok'),
     stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok'),
-    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok'));
+    stat('Vehicles to add by ' + fmt(res.endDate) + ' (CFFO)', lines(gapVeh), gapVeh.length ? 'bad' : 'ok'),
+    stat('Spare factor – staff (CHRO)', num(state.staff.sparePct) + '%'),
+    stat('Spare factor – vehicles (CFFO)', lines(VT.map(t => num(state.vehicles[t].sparePct) + '% ' + VT_SHORT[t]))));
   if (peak && peak.shortfall > 0 && peak.date !== last.date && peak.shortfall > last.shortfall) sum.append(stat('Peak shortfall', peak.shortfall + ' on ' + fmt(peak.date), 'bad'));
   const overflowWeeks = res.weeks.filter(w => res.supply[w].overflow > 0);
   if (overflowWeeks.length) notices.append(h('div', { class: 'notice' }, 'Parking capacity exceeded in ' + overflowWeeks.length + ' week(s): up to ' + Math.max(...overflowWeeks.map(w => res.supply[w].overflow)) + ' vehicle(s) cannot be parked and are excluded from the fleet.'));
@@ -708,14 +713,14 @@ function renderResults(res) {
     if (gg.depot) vehLines.push('+' + gg.depot + ' parking spaces');
     if (gg.drivers) staffLines.push('+' + gg.drivers + ' drivers');
     if (gg.attendants) staffLines.push('+' + gg.attendants + ' attendants');
-    const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' }, h('span', { class: 'gap-title', style: 'color:' + color }, title), lines.length ? h('div', {}, lines.join(' / ')) : h('div', { class: 'ok' }, 'none needed'));
+    const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' }, h('span', { class: 'gap-title', style: 'color:' + color }, title), lines.length ? lines.map(x => h('div', {}, x)) : h('div', { class: 'ok' }, 'none needed'));
     return [
-      h('td', {}, newTotal ? h('span', {}, String(newTotal), h('span', { class: 'sub' }, splitText(added))) : h('span', { class: 'muted' }, '–')),
-      h('td', {}, h('span', { class: 'big' }, r.totalDemand), h('span', { class: 'sub' }, splitText(r.demand))),
-      h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), h('span', { class: 'sub' }, splitText(s.usable, false))),
-      h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), h('span', { class: 'sub' }, s.usableDrivers + ' drivers' + (state.rules.attendantRequired ? ' · ' + s.usableAttendants + ' attendants' : ''))),
+      h('td', {}, newTotal ? h('span', {}, String(newTotal), subLines(splitArr(added))) : h('span', { class: 'muted' }, '–')),
+      h('td', {}, h('span', { class: 'big' }, r.totalDemand), subLines(splitArr(r.demand))),
+      h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), subLines(splitArr(s.usable, false))),
+      h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), subLines([s.usableDrivers + ' drivers', ...(state.rules.attendantRequired ? [s.usableAttendants + ' attendants'] : [])])),
       h('td', {}, h('span', { class: 'big' }, r.serviceable)),
-      h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a vehicle: ' + splitText(r.unserved)) : null),
+      h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? subLines(['Routes without a vehicle:', ...splitArr(r.unserved)], 'bad') : null),
       h('td', {}, h('span', { class: 'pill ' + (sShort > 0 ? 'bad' : 'ok') }, sShort > 0 ? '−' + sShort : 'OK'), sShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a ' + (state.rules.attendantRequired ? 'crew' : 'driver')) : null),
       h('td', { class: 'l gap' }, gapBlock('Vehicles (CFFO)', vehLines, '#1f6feb'), gapBlock('Staff (CHRO)', staffLines, '#7c3aed')),
     ];
