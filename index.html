@@ -67,6 +67,23 @@
   .rules { font-size: 13px; line-height: 1.6; margin: 0; padding-left: 18px; }
   #fileInput { display: none; }
 
+  /* versions & share */
+  .hidden { display: none !important; }
+  .banner { background: #e0f2fe; color: #075985; border-bottom: 1px solid #bae6fd; padding: 8px 20px; font-size: 13px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .banner b { font-weight: 700; }
+  .banner button { padding: 2px 8px; font-size: 12px; }
+  .modal { position: fixed; inset: 0; background: rgba(31,41,51,.45); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+  .modal-box { background: #fff; border-radius: 10px; width: 100%; max-width: 860px; padding: 16px 20px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .modal-head h2 { margin: 0; font-size: 17px; }
+  .status { font-size: 13px; margin-top: 8px; min-height: 18px; white-space: normal; }
+  .status.bad { color: var(--bad); font-weight: normal; }
+  .status.ok { color: var(--ok); font-weight: normal; }
+  .status a { color: var(--accent); word-break: break-all; }
+  table.versions td { white-space: normal; }
+  table.versions td.actions { white-space: nowrap; }
+  code { background: var(--head); padding: 0 4px; border-radius: 3px; font-size: 12px; }
+
   /* owner boxes */
   .owner { border-width: 2px; }
   .owner.cffo { border-color: var(--cffo); } .owner.chro { border-color: var(--chro); } .owner.csdo { border-color: var(--csdo); } .owner.admin { border-color: var(--admin); }
@@ -99,7 +116,7 @@
 
   /* results table */
   table.results { font-size: 14px; }
-  table.results th { padding: 8px 10px; background: #e6ebf0; vertical-align: bottom; }
+  table.results th { padding: 8px 10px; background: #e6ebf0; vertical-align: bottom; white-space: normal; max-width: 130px; }
   table.results td { padding: 6px 10px; vertical-align: top; }
   table.results tr.wk td { background: #f1f4f8; font-weight: 600; cursor: pointer; }
   table.results tr.wk:hover td { background: #e8edf3; }
@@ -161,7 +178,8 @@
   <div class="hdr-row">
     <h1>Route Capacity Planner</h1>
     <span id="saveStatus" class="muted" style="font-size:12px"></span>
-    <button id="btnPdf" class="primary">Export PDF</button>
+    <button id="btnVersions" class="primary">Versions &amp; share</button>
+    <button id="btnPdf">Export PDF</button>
     <button id="btnExport">Export JSON</button>
     <button id="btnImport">Import JSON</button>
     <button id="btnReset" class="danger">Reset to defaults</button>
@@ -175,6 +193,49 @@
     <button data-tab="admin"><span class="dot" style="background:var(--admin)"></span>Admin · Rules</button>
   </nav>
 </header>
+<div id="versionBanner" class="banner hidden"></div>
+
+<!-- ================= VERSIONS & SHARE MODAL ================= -->
+<div id="verModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Versions &amp; share</h2><button id="verClose" class="small">✕ Close</button></div>
+
+    <div class="sub-card">
+      <h3>Quick share link <span class="hint">no setup needed – the inputs are packed into the link itself</span></h3>
+      <div class="row">
+        <button id="btnQuickLink" class="primary">Copy quick share link</button>
+        <span id="quickLinkStatus" class="muted"></span>
+      </div>
+      <p class="hint" style="margin:6px 0 0">Anyone opening the link sees exactly these inputs. Long link; not listed anywhere; best for one-off sharing.</p>
+    </div>
+
+    <div class="sub-card" style="margin-top:12px">
+      <h3>Save as a named version on GitHub <span class="hint">creates <code>versions/&lt;name&gt;.json</code> in the repo; share as a short link</span></h3>
+      <div class="row">
+        <div class="field" style="flex:1; min-width:220px"><label>Version name</label><input type="text" id="verName" placeholder="e.g. Board meeting Sep 22 – base case"></div>
+        <button id="btnSaveVersion" class="primary">Save version to GitHub</button>
+      </div>
+      <div id="saveVersionStatus" class="status"></div>
+    </div>
+
+    <div class="sub-card" style="margin-top:12px">
+      <h3>Saved versions <button id="btnRefreshVersions" class="small" style="margin-left:6px">Refresh</button></h3>
+      <div id="versionList" class="muted">Loading…</div>
+    </div>
+
+    <details class="sub-card" style="margin-top:12px" id="gitSettings">
+      <summary style="cursor:pointer; font-weight:600; font-size:13px">GitHub settings</summary>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label>Owner (user or org)</label><input type="text" id="gitOwner" placeholder="your-github-user"></div>
+        <div class="field"><label>Repository</label><input type="text" id="gitRepo" placeholder="Route-capacity"></div>
+        <div class="field"><label>Branch</label><input type="text" id="gitBranch" placeholder="main" class="narrow"></div>
+        <div class="field" style="flex:1; min-width:260px"><label>Personal access token (needed to save)</label><input type="password" id="gitToken" placeholder="github_pat_…"></div>
+        <button id="btnSaveGit" class="small" style="margin-bottom:4px">Save settings</button>
+      </div>
+      <p class="hint" style="margin:8px 0 0">The token is stored only in this browser and is never included in exports or versions. Create a <b>fine-grained token</b> at GitHub → Settings → Developer settings → Personal access tokens, limited to this repository with <b>Contents: Read and write</b>. Loading and sharing versions needs no token once GitHub Pages has published them (typically 1–2 minutes after saving).</p>
+    </details>
+  </div>
+</div>
 
 <main>
   <!-- ================= OUTPUTS ================= -->
@@ -306,7 +367,7 @@ const VT = ['C', 'AN', 'AW', 'M'];
 const VT_LABEL = { C: 'Type C (Big Bus)', AN: 'Type A – no wheelchair', AW: 'Type A – wheelchair', M: 'Minivan' };
 const VT_SHORT = { C: 'Type C', AN: 'A non-WC', AW: 'A WC', M: 'Minivan' };
 const VT_COLOR = { C: '#5b6b7f', AN: '#1f6feb', AW: '#7c3aed', M: '#0e9f9e' };
-const STORAGE_KEY = 'routeCapacityState.v4';
+const STORAGE_KEY = 'routeCapacityState.v5';
 
 function defaultRules() {
   return {
@@ -317,20 +378,20 @@ function defaultRules() {
 function defaultState() {
   return {
     depots: [
-      { name: 'Brooklyn', capacity: 275, allowC: false },
-      { name: 'Queens', capacity: 300, allowC: true },
-      { name: 'Bronx | Zerega', capacity: 150, allowC: true },
-      { name: 'Bronx | Conner', capacity: 100, allowC: true },
-      { name: 'SI – Richmond', capacity: 150, allowC: false },
-      { name: 'SI – Sharrots', capacity: 100, allowC: false },
+      { name: 'Brooklyn', capacity: 290, allowC: false },
+      { name: 'Queens', capacity: 375, allowC: true },
+      { name: 'Bronx | Zerega', capacity: 158, allowC: true },
+      { name: 'Bronx | Conner', capacity: 105, allowC: true },
+      { name: 'SI – Richmond', capacity: 114, allowC: false },
+      { name: 'SI – Sharrots', capacity: 48, allowC: false },
     ],
-    staff: { drivers: 884, attendants: 887, sparePct: 0, avgDrOut: 5, avgAtOut: 5 },
+    staff: { drivers: 884, attendants: 887, sparePct: 0, avgDrOut: 2, avgAtOut: 2 },
     vehicles: { C: { present: 183, sparePct: 0, avgOut: 2 }, AN: { present: 633, sparePct: 0, avgOut: 2 }, AW: { present: 36, sparePct: 0, avgOut: 1 }, M: { present: 7, sparePct: 0, avgOut: 1 } },
     pipeline: {
       '2026-09-21': { ANIn: 21, drIn: 5, atIn: 5 },
       '2026-09-28': { ANIn: 20, drIn: 5, atIn: 5 },
       '2026-10-05': { ANIn: 10, drIn: 5, atIn: 5 },
-      '2026-10-12': { drIn: 5, atIn: 5 },
+      '2026-10-12': { drIn: 5, atIn: 5, MIn: 20 },
       '2026-10-19': { drIn: 5, atIn: 5 },
       '2026-10-26': { drIn: 5, atIn: 5 },
     },
@@ -359,6 +420,7 @@ const HELP = {
   vShort: 'Routes with no suitable vehicle, after allowing substitutions (e.g. a wheelchair bus covering a non-wheelchair route). Shows which route types are short.',
   sShort: 'Routes with no crew available.',
   gap: 'What CFFO and CHRO each need to add for every route to run, grossed up for the spare factor so it reads as head-count / vehicles.',
+  parkingMax: 'Upper limit on routes set by parking alone: one parked vehicle per route, so max routes = total parking spaces. Type C routes are further limited to spaces at Type C-allowed locations. Ignores staff and the current fleet.',
   parkName: 'Name of the yard / depot where vehicles are parked.',
   parkCap: 'Most vehicles that can be based at this location.',
   parkC: 'Tick if Type C (big) buses can be based here. Other types can park anywhere.',
@@ -629,7 +691,7 @@ function renderPipeline() {
   el('horizonEnd').value = state.horizonEnd || ''; el('resultsFrom').value = state.resultsFrom || '';
   const weeks = currentWeeks();
   const st = el('staffPipeline'); st.innerHTML = '';
-  st.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), TH('Drivers in', HELP.drIn), TH('Attendants in', HELP.atIn), TH('Drivers avail.', HELP.drAvail), TH('Attend. avail.', HELP.atAvail), TH('Usable ' + crewWord(), HELP.pairs)));
+  st.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), TH('Active and Eligible Drivers', HELP.drIn), TH('Active and Eligible Attendants', HELP.atIn), TH('Drivers avail.', HELP.drAvail), TH('Attend. avail.', HELP.atAvail), TH('Usable ' + crewWord(), HELP.pairs)));
   const vt = el('vehiclePipeline'); vt.innerHTML = '';
   vt.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), ...VT.map(t => TH(VT_SHORT[t] + ' in', HELP.vehIn)), ...VT.map(t => TH(VT_SHORT[t] + ' fleet', HELP.fleet))));
   for (const w of weeks) {
@@ -688,9 +750,12 @@ function renderResults(res) {
   const gapVeh = VT.filter(t => g.vehicles[t]).map(t => '+' + g.vehicles[t] + ' ' + VT_SHORT[t]);
   const gapStaff = [g.drivers ? '+' + g.drivers + ' drivers' : '', g.attendants ? '+' + g.attendants + ' attendants' : ''].filter(Boolean);
   const lines = arr => arr.length ? h('div', { class: 'lines' }, ...arr.map(x => h('div', {}, x))) : 'None';
+  const caps = depotCaps(state);
+  const parkingShort = Math.max(0, last.totalDemand - caps.all, last.demand.C - caps.cOnly);
   sum.append(
-    stat('Routes needed by ' + fmt(res.endDate), last.totalDemand),
-    stat('Serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
+    stat('Routes to be serviced by ' + fmt(res.endDate), last.totalDemand),
+    stat('Max routes by parking (CFFO)', caps.all, parkingShort > 0 ? 'bad' : 'ok', h('span', {}, caps.all + ' spaces total · ' + caps.cOnly + ' Type C-eligible', parkingShort > 0 ? h('div', { class: 'bad' }, 'Parking short by ' + parkingShort) : null)),
+    stat('Routes serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('First shortfall date', firstShort ? fmtDow(firstShort.date) : 'None', firstShort ? 'bad' : 'ok'),
     stat('Staff to add by ' + fmt(res.endDate) + ' (CHRO)', lines(gapStaff), gapStaff.length ? 'bad' : 'ok', spareNote(num(state.staff.sparePct) + '%')),
@@ -702,9 +767,9 @@ function renderResults(res) {
   renderChart(weeks);
 
   tbl.append(h('thead', {}, h('tr', {},
-    TH('Week / date', HELP.period, 'l'), TH('New routes', HELP.newRoutes), TH('Routes needed', HELP.needed), TH('Usable vehicles', HELP.vehicles),
+    TH('Week / date', HELP.period, 'l'), TH('Routes starting this week / date', HELP.newRoutes), TH('Routes serviced', HELP.needed), TH('Usable vehicles', HELP.vehicles), TH('Max routes by parking', HELP.parkingMax),
     TH(state.rules.attendantRequired ? 'Staff crews' : 'Drivers', state.rules.attendantRequired ? HELP.staff : HELP.staffDriversOnly),
-    TH('Serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l'))));
+    TH('Routes serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l'))));
   const tbody = h('tbody', {}); tbl.append(tbody);
 
   const cells = (r, added) => {
@@ -721,6 +786,9 @@ function renderResults(res) {
       h('td', {}, newTotal ? h('span', {}, String(newTotal), subLines(splitArr(added))) : h('span', { class: 'muted' }, '–')),
       h('td', {}, h('span', { class: 'big' }, r.totalDemand), subLines(splitArr(r.demand))),
       h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), subLines(splitArr(s.usable, false))),
+      h('td', {}, h('span', { class: 'big ' + (r.totalDemand > caps.all || r.demand.C > caps.cOnly ? 'bad' : '') }, caps.all),
+        subLines([caps.cOnly + ' Type C-eligible', ...(r.demand.C > caps.cOnly ? ['Type C routes exceed eligible parking by ' + (r.demand.C - caps.cOnly)] : []), ...(r.totalDemand > caps.all ? ['Routes exceed parking by ' + (r.totalDemand - caps.all)] : [])],
+          r.totalDemand > caps.all || r.demand.C > caps.cOnly ? 'bad' : '')),
       h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), subLines([s.usableDrivers + ' drivers', ...(state.rules.attendantRequired ? [s.usableAttendants + ' attendants'] : [])])),
       h('td', {}, h('span', { class: 'big' }, r.serviceable)),
       h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? subLines(['Routes without a vehicle:', ...splitArr(r.unserved)], 'bad') : null),
@@ -773,7 +841,7 @@ function renderChart(weeks) {
     const cx = mL + cw * (i + 0.5), xNeed = cx - 1.5 * bw - gap, xVeh = cx - bw / 2, xStaff = cx + bw / 2 + gap;
     const wk = 'Week of ' + fmt(w.week) + ' (at week end)';
     if (i % 2) svg.append(S('rect', { x: mL + cw * i, y: mT, width: cw, height: ih, fill: '#f7f9fb' }));
-    const need = stacked(xNeed, w.demand, 1, `<b>Routes needed</b><br>${wk}${ttRows(w.demand, 1)}<div class="tt-row tt-total"><span>Total</span><span>${w.totalDemand}</span></div>`);
+    const need = stacked(xNeed, w.demand, 1, `<b>Routes to be serviced</b><br>${wk}${ttRows(w.demand, 1)}<div class="tt-row tt-total"><span>Total</span><span>${w.totalDemand}</span></div>`);
     topLabel(xNeed, need);
     const vShort = w.totalDemand - w.vehicleFeasible;
     const veh = stacked(xVeh, w.supply.usable, 0.55, `<b>Usable vehicles</b><br>${wk}${ttRows(w.supply.usable, 0.7)}<div class="tt-row tt-total"><span>Total</span><span>${w.supply.usableTotal}</span></div>` +
@@ -827,7 +895,7 @@ function renderAssumptions(res) {
           [['Drivers', state.staff.drivers, state.staff.sparePct, comp(usable(state.staff.drivers, state.staff.sparePct)), state.staff.avgDrOut],
            ['Attendants', state.staff.attendants, state.staff.sparePct, comp(usable(state.staff.attendants, state.staff.sparePct)), state.staff.avgAtOut]])),
       h('div', {}, h('h4', {}, 'Staff pipeline and resulting availability'),
-        staticTable([['Week of', HELP.weekOf], ['Drivers in', HELP.drIn], ['Attendants in', HELP.atIn], ['Drivers avail.', HELP.drAvail], ['Attend. avail.', HELP.atAvail], ['Usable ' + crewWord(), HELP.pairs]],
+        staticTable([['Week of', HELP.weekOf], ['Active and Eligible Drivers', HELP.drIn], ['Active and Eligible Attendants', HELP.atIn], ['Drivers avail.', HELP.drAvail], ['Attend. avail.', HELP.atAvail], ['Usable ' + crewWord(), HELP.pairs]],
           weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), num(p.drIn), num(p.atIn), comp(s ? s.drivers : ''), comp(s ? s.attendants : ''), comp(s ? s.pairs : '')]; })))));
   box.append(h('h3', { class: 'csdo' }, 'CSDO – route schedule'),
     staticTable([['Week of', HELP.routeWeek], ['Start date', HELP.routeDate], ...VT.map(t => [VT_LABEL[t], HELP.routeCount]), ['Total', HELP.routeTotal]],
@@ -884,7 +952,124 @@ function buildReport() {
 function openReport(print) { buildReport(); document.body.classList.add('printing'); window.scrollTo(0, 0); if (print) setTimeout(() => window.print(), 50); }
 function closeReport() { document.body.classList.remove('printing'); const r = el('report'); if (r) r.remove(); }
 
+/* ---------------- Versions & sharing (GitHub + quick links) ---------------- */
+const GIT_KEY = 'routeCapacityGit.v1', VERSIONS_DIR = 'versions';
+let git = (() => { try { return { owner: '', repo: '', branch: 'main', token: '', ...(JSON.parse(localStorage.getItem(GIT_KEY) || '{}')) }; } catch (e) { return { owner: '', repo: '', branch: 'main', token: '' }; } })();
+// Pre-fill owner/repo when running on GitHub Pages (user.github.io/repo/)
+(function detectRepo() {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  if (m) { if (!git.owner) git.owner = m[1]; const seg = location.pathname.split('/').filter(Boolean)[0]; if (!git.repo && seg && !seg.endsWith('.html')) git.repo = seg; }
+})();
+function saveGit() { localStorage.setItem(GIT_KEY, JSON.stringify(git)); }
+const gitReady = () => git.owner && git.repo;
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob(s)));
+const b64url = s => b64enc(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64urlDec = s => b64dec(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4));
+const slugify = s => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+const baseUrl = () => location.origin + location.pathname;
+const versionUrl = slug => baseUrl() + '?version=' + encodeURIComponent(slug);
+const shareableState = () => { const s = JSON.parse(JSON.stringify(state)); delete s.tab; delete s.expanded; return s; };
+
+async function ghRequest(method, path, body) {
+  const url = `https://api.github.com/repos/${git.owner}/${git.repo}/contents/${path}` + (method === 'GET' ? `?ref=${encodeURIComponent(git.branch || 'main')}&t=${Date.now()}` : '');
+  const headers = { Accept: 'application/vnd.github+json' };
+  if (git.token) headers.Authorization = 'Bearer ' + git.token;
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { msg += ' – ' + (await res.json()).message; } catch (e) {} throw new Error(msg); }
+  return res.json();
+}
+async function ghGetJson(path) { const r = await ghRequest('GET', path); return r ? { sha: r.sha, data: JSON.parse(b64dec(r.content.replace(/\n/g, ''))) } : null; }
+async function ghPutJson(path, data, message, sha) {
+  const body = { message, content: b64enc(JSON.stringify(data, null, 2)), branch: git.branch || 'main' }; if (sha) body.sha = sha;
+  return ghRequest('PUT', path, body);
+}
+// Read a published file: relative (GitHub Pages) → raw.githubusercontent → API
+async function readPublished(path) {
+  try { const r = await fetch(path + '?t=' + Date.now(), { cache: 'no-store' }); if (r.ok) return await r.json(); } catch (e) {}
+  if (gitReady()) {
+    try { const r = await fetch(`https://raw.githubusercontent.com/${git.owner}/${git.repo}/${git.branch || 'main'}/${path}?t=${Date.now()}`, { cache: 'no-store' }); if (r.ok) return await r.json(); } catch (e) {}
+    try { const r = await ghGetJson(path); if (r) return r.data; } catch (e) {}
+  }
+  return null;
+}
+async function saveVersion(name) {
+  if (!gitReady()) throw new Error('Set the GitHub owner and repository in GitHub settings first.');
+  if (!git.token) throw new Error('A personal access token with Contents: Read and write is required to save.');
+  const slug = slugify(name); if (!slug) throw new Error('Enter a version name.');
+  const path = `${VERSIONS_DIR}/${slug}.json`;
+  const existing = await ghGetJson(path);
+  if (existing && !confirm(`A version named "${slug}" already exists. Overwrite it?`)) return null;
+  const savedAt = new Date().toISOString();
+  const payload = { app: 'route-capacity-planner', name: name.trim(), slug, savedAt, state: shareableState() };
+  await ghPutJson(path, payload, `Save version: ${name.trim()}`, existing && existing.sha);
+  const idx = await ghGetJson(`${VERSIONS_DIR}/index.json`);
+  const list = (idx && Array.isArray(idx.data) ? idx.data : []).filter(v => v.slug !== slug);
+  list.unshift({ name: name.trim(), slug, savedAt });
+  await ghPutJson(`${VERSIONS_DIR}/index.json`, list, `Update versions index: ${name.trim()}`, idx && idx.sha);
+  return { slug, url: versionUrl(slug) };
+}
+async function listVersions() {
+  if (gitReady() && git.token) { const idx = await ghGetJson(`${VERSIONS_DIR}/index.json`); return idx && Array.isArray(idx.data) ? idx.data : []; }
+  const list = await readPublished(`${VERSIONS_DIR}/index.json`); return Array.isArray(list) ? list : [];
+}
+async function loadVersion(slug) {
+  const payload = await readPublished(`${VERSIONS_DIR}/${encodeURIComponent(slug)}.json`);
+  if (!payload || !payload.state) throw new Error(`Version "${slug}" was not found (if it was just saved, GitHub Pages may need a minute to publish it).`);
+  state = normalize(payload.state); renderAll();
+  showBanner(h('span', {}, 'Viewing version ', h('b', {}, payload.name || slug), ' saved ' + new Date(payload.savedAt).toLocaleString() + '. Edits stay in this browser until you save a new version.'), versionUrl(slug));
+}
+function quickLink() { return baseUrl() + '#s=' + b64url(JSON.stringify(shareableState())); }
+function loadQuickLink(hash) {
+  const m = hash.match(/[#&]s=([^&]+)/); if (!m) return false;
+  try { state = normalize(JSON.parse(b64urlDec(m[1]))); renderAll(); showBanner(h('span', {}, 'Viewing inputs from a ', h('b', {}, 'quick share link'), '. Edits stay in this browser until you share again.'), location.href); return true; }
+  catch (e) { alert('This share link could not be read: ' + e.message); return false; }
+}
+async function copyText(txt) { try { await navigator.clipboard.writeText(txt); return true; } catch (e) { prompt('Copy this link:', txt); return false; } }
+function showBanner(content, url) {
+  const b = el('versionBanner'); b.innerHTML = ''; b.classList.remove('hidden');
+  b.append(content, h('button', { onclick: () => copyText(url).then(ok => { if (ok) setStatus(null, 'Link copied'); }) }, 'Copy link'), h('button', { onclick: () => { b.classList.add('hidden'); history.replaceState(null, '', baseUrl()); } }, 'Dismiss'));
+  setHeaderHeight();
+}
+function setStatus(id, msg, cls) { const e = id ? el(id) : el('saveStatus'); e.textContent = ''; e.className = (id ? 'status ' : 'muted ') + (cls || ''); if (msg && msg.nodeType) e.append(msg); else e.textContent = msg || ''; }
+function renderGitSettings() { el('gitOwner').value = git.owner; el('gitRepo').value = git.repo; el('gitBranch').value = git.branch || 'main'; el('gitToken').value = git.token || ''; if (!gitReady()) el('gitSettings').open = true; }
+async function renderVersionList() {
+  const box = el('versionList'); box.textContent = 'Loading…';
+  if (!gitReady()) { box.textContent = 'Set the GitHub owner and repository below to list saved versions.'; return; }
+  try {
+    const list = await listVersions();
+    if (!list.length) { box.textContent = 'No versions saved yet.'; return; }
+    const t = h('table', { class: 'versions' }, h('tr', {}, h('th', { class: 'l' }, 'Version'), h('th', { class: 'l' }, 'Saved'), h('th', { class: 'l' }, 'Link'), h('th', {}, '')));
+    for (const v of list) {
+      t.append(h('tr', {}, h('td', { class: 'l' }, h('b', {}, v.name)), h('td', { class: 'l muted' }, new Date(v.savedAt).toLocaleString()),
+        h('td', { class: 'l' }, h('a', { href: versionUrl(v.slug), target: '_blank', style: 'color:var(--accent); font-size:12px; word-break:break-all' }, versionUrl(v.slug))),
+        h('td', { class: 'actions' }, h('button', { class: 'small', onclick: () => copyText(versionUrl(v.slug)).then(ok => setStatus('saveVersionStatus', ok ? 'Link copied for "' + v.name + '"' : '', 'ok')) }, 'Copy link'), ' ',
+          h('button', { class: 'small', onclick: async () => { if (!confirm('Load "' + v.name + '"? Your current inputs in this browser will be replaced.')) return; try { await loadVersion(v.slug); closeVersions(); } catch (e) { setStatus('saveVersionStatus', e.message, 'bad'); } } }, 'Load'))));
+    }
+    box.innerHTML = ''; box.append(t);
+  } catch (e) { box.textContent = 'Could not list versions: ' + e.message; }
+}
+function openVersions() { renderGitSettings(); setStatus('saveVersionStatus', ''); setStatus('quickLinkStatus', ''); el('verModal').classList.remove('hidden'); renderVersionList(); }
+function closeVersions() { el('verModal').classList.add('hidden'); }
+
 /* ---------------- Wiring ---------------- */
+el('btnVersions').addEventListener('click', openVersions);
+el('verClose').addEventListener('click', closeVersions);
+el('verModal').addEventListener('click', e => { if (e.target === el('verModal')) closeVersions(); });
+el('btnSaveGit').addEventListener('click', () => { git.owner = el('gitOwner').value.trim(); git.repo = el('gitRepo').value.trim(); git.branch = el('gitBranch').value.trim() || 'main'; git.token = el('gitToken').value.trim(); saveGit(); setStatus('saveVersionStatus', 'GitHub settings saved in this browser.', 'ok'); renderVersionList(); });
+el('btnQuickLink').addEventListener('click', async () => { const url = quickLink(); const ok = await copyText(url); el('quickLinkStatus').textContent = ok ? 'Copied (' + Math.round(url.length / 1000) + ' KB link)' : ''; });
+el('btnSaveVersion').addEventListener('click', async () => {
+  const name = el('verName').value; const btn = el('btnSaveVersion'); btn.disabled = true; setStatus('saveVersionStatus', 'Saving to GitHub…');
+  try {
+    const r = await saveVersion(name);
+    if (r) { setStatus('saveVersionStatus', h('span', {}, 'Saved. Share link: ', h('a', { href: r.url, target: '_blank' }, r.url), ' ', h('button', { class: 'small', onclick: () => copyText(r.url) }, 'Copy'), h('div', { class: 'hint' }, 'GitHub Pages usually publishes the new version within 1–2 minutes; the link works after that.')), 'ok'); renderVersionList(); }
+    else setStatus('saveVersionStatus', '');
+  } catch (e) { setStatus('saveVersionStatus', 'Could not save: ' + e.message, 'bad'); }
+  btn.disabled = false;
+});
+el('btnRefreshVersions').addEventListener('click', renderVersionList);
+
 function setHeaderHeight() { document.documentElement.style.setProperty('--hdr-h', document.querySelector('header').offsetHeight + 'px'); }
 window.addEventListener('resize', setHeaderHeight);
 setHeaderHeight();
@@ -926,7 +1111,13 @@ el('fileInput').addEventListener('change', e => {
 el('btnReset').addEventListener('click', () => { if (confirm('Reset all inputs and rules to the built-in defaults? Your saved data will be replaced.')) { state = defaultState(); renderAll(); } });
 
 renderAll();
-if (location.search.includes('report')) openReport(false);
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const ver = params.get('version');
+  if (ver) { try { await loadVersion(ver); } catch (e) { showBanner(h('span', { class: 'bad' }, e.message), location.href); } }
+  else if (location.hash.includes('s=')) loadQuickLink(location.hash);
+  if (params.has('report')) openReport(false);
+})();
 </script>
 </body>
 </html>
