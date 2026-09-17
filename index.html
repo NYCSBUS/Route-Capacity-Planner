@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route Capacity Planner</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #fff; --border: #d9dee3; --text: #1f2933; --muted: #616e7c;
+    --accent: #1f6feb; --ok: #1a7f37; --warn: #b35c00; --bad: #c62828; --head: #eef2f6;
+    --c-C: #5b6b7f; --c-AN: #1f6feb; --c-AW: #7c3aed; --c-M: #0e9f9e; --c-staff: #d97706; --c-serv: #1a7f37;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; color: var(--text); background: var(--bg); }
+  header { background: #fff; border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  main { padding: 16px 20px 60px; max-width: 1500px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card h2 .hint { font-weight: normal; color: var(--muted); font-size: 12px; }
+  h2.section { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; }
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: 4px 6px; text-align: right; white-space: nowrap; }
+  th { background: var(--head); font-weight: 600; text-align: center; }
+  td.l, th.l { text-align: left; }
+  td.c { text-align: center; }
+  input[type=number], input[type=date], input[type=text] { width: 100%; min-width: 60px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 4px; font: inherit; text-align: right; }
+  input[type=text] { text-align: left; }
+  input[type=date] { text-align: left; min-width: 130px; }
+  input.narrow { max-width: 110px; }
+  button { font: inherit; padding: 5px 10px; border: 1px solid var(--border); border-radius: 5px; background: #fff; cursor: pointer; }
+  button:hover { background: var(--head); }
+  button.small { padding: 2px 7px; font-size: 12px; }
+  button.danger { color: var(--bad); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { background: #185dc7; }
+  .row { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat { background: var(--head); border-radius: 6px; padding: 8px 10px; }
+  .stat .v { font-size: 20px; font-weight: 700; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .toolbar { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin: 6px 0 10px; }
+  .toolbar label.chk { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); padding-bottom: 6px; }
+  .scroll { overflow-x: auto; }
+  .comp { background: #fafbfc; color: var(--muted); }
+  .notice { padding: 8px 10px; border-radius: 6px; margin: 8px 0; font-size: 13px; background: #fff4e5; color: var(--warn); }
+  .rules { font-size: 13px; line-height: 1.6; margin: 0; padding-left: 18px; }
+  #fileInput { display: none; }
+  input[type=number].nz { background: #fff6cc; border-color: #e6b800; font-weight: 700; color: #5c4a00; }
+  td.nzc { background: #fff6cc; font-weight: 700; color: #5c4a00; }
+
+  /* ---------- printable report ---------- */
+  #report { display: none; }
+  body.printing header, body.printing main, body.printing #tip { display: none !important; }
+  body.printing { background: #fff; }
+  body.printing #report { display: block; padding: 16px 24px; max-width: 1400px; margin: 0 auto; font-size: 12px; }
+  #report h1 { font-size: 20px; margin: 0 0 2px; }
+  #report .rep-meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  #report h2 { font-size: 14px; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 2px solid var(--border); page-break-after: avoid; }
+  #report h2.cffo { color: #1f6feb; border-color: #1f6feb; }
+  #report h2.chro { color: #b35c00; border-color: #d97706; }
+  #report h3 { font-size: 12px; margin: 10px 0 4px; }
+  #report table { font-size: 11px; margin-bottom: 8px; }
+  #report th, #report td { padding: 3px 6px; }
+  #report table.results td { padding: 4px 6px; }
+  #report .caret, #report .legend .muted { display: none; }
+  #report tr { page-break-inside: avoid; }
+  #report .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  #report .summary { grid-template-columns: repeat(6, 1fr); }
+  #report .stat .v { font-size: 16px; }
+  #report .rules { font-size: 11px; }
+  #report .rep-actions { margin-bottom: 12px; display: flex; gap: 8px; }
+  @media print {
+    @page { size: landscape; margin: 10mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #report .rep-actions { display: none; }
+    body.printing #report { padding: 0; max-width: none; }
+  }
+
+  /* owner boxes */
+  .owner { border-width: 2px; }
+  .owner.cffo { border-color: #1f6feb; }
+  .owner.chro { border-color: #d97706; }
+  .owner-title { font-size: 16px; }
+  .owner-title .role { font-weight: normal; color: var(--muted); font-size: 13px; }
+  .cffo .owner-title { color: #1f6feb; }
+  .chro .owner-title { color: #b35c00; }
+  .sub-card { background: #fafbfc; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .sub-card h3 { font-size: 13px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .sub-card h3 .hint { font-weight: normal; color: var(--muted); font-size: 12px; }
+
+  /* tooltip */
+  #tip { position: fixed; z-index: 100; pointer-events: none; background: #1f2933; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,.25); display: none; max-width: 260px; }
+  #tip b { font-size: 13px; }
+  #tip .tt-row { display: flex; justify-content: space-between; gap: 14px; }
+  #tip i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+  #tip .tt-total { border-top: 1px solid rgba(255,255,255,.3); margin-top: 4px; padding-top: 4px; font-weight: 600; }
+
+  /* chart */
+  .chart { margin: 4px 0 18px; }
+  .chart svg { width: 100%; height: auto; display: block; font-family: inherit; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-bottom: 6px; align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
+  .legend i.line { height: 3px; width: 20px; }
+  .legend .sep { color: var(--border); }
+
+  /* results table */
+  table.results { font-size: 14px; }
+  table.results th { padding: 8px 10px; background: #e6ebf0; vertical-align: bottom; }
+  table.results td { padding: 6px 10px; vertical-align: top; }
+  table.results tr.wk td { background: #f1f4f8; font-weight: 600; cursor: pointer; }
+  table.results tr.wk:hover td { background: #e8edf3; }
+  table.results tr.day td { font-weight: normal; }
+  table.results tr.day td.l { padding-left: 34px; color: var(--muted); }
+  table.results .caret { display: inline-block; width: 16px; color: var(--muted); }
+  table.results .big { font-size: 15px; font-weight: 700; }
+  table.results .sub { display: block; font-size: 11px; color: var(--muted); font-weight: normal; white-space: normal; max-width: 260px; margin-top: 2px; line-height: 1.35; }
+  table.results .sub.bad { color: var(--bad); }
+  table.results td.gap { white-space: normal; max-width: 240px; font-weight: normal; font-size: 13px; }
+  table.results td.gap .gap-block { margin-bottom: 4px; }
+  table.results td.gap .gap-block div { color: var(--bad); font-weight: 600; }
+  table.results td.gap .gap-block div.ok { color: var(--ok); font-weight: normal; }
+  table.results td.gap .gap-title { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .pill { display: inline-block; min-width: 46px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 13px; }
+  .pill.bad { background: #fdecea; color: var(--bad); }
+  .pill.ok { background: #edf7ee; color: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Route Capacity Planner</h1>
+  <span id="saveStatus" class="muted" style="font-size:12px"></span>
+  <button id="btnPdf" class="primary">Export PDF</button>
+  <button id="btnExport">Export JSON</button>
+  <button id="btnImport">Import JSON</button>
+  <button id="btnReset" class="danger">Reset to defaults</button>
+  <input type="file" id="fileInput" accept="application/json">
+</header>
+
+<main>
+  <section class="card">
+    <h2>Capacity vs. routes needed <span class="hint">by week; click a week in the table to see individual dates</span></h2>
+    <div id="summary" class="summary"></div>
+    <div id="notices"></div>
+    <div class="toolbar">
+      <div class="field"><label>Show results from</label><input type="date" id="resultsFrom"></div>
+      <div class="field"><label>Horizon end</label><input type="date" id="horizonEnd"></div>
+      <button id="btnExpandAll" class="small" style="margin-bottom:5px">Expand all weeks</button>
+      <button id="btnCollapseAll" class="small" style="margin-bottom:5px">Collapse all</button>
+      <label class="chk" style="margin-left:auto"><input type="checkbox" id="allDays"> Show every calendar day when expanded</label>
+    </div>
+    <div id="chartWrap" class="chart"></div>
+    <div id="tip"></div>
+    <div class="scroll"><table id="resultTable" class="results"></table></div>
+  </section>
+
+  <h2 class="section">Inputs</h2>
+
+  <section class="card owner cffo">
+    <h2 class="owner-title">CFFO <span class="role">Chief Fleet Officer – vehicles &amp; parking</span></h2>
+    <div class="grid grid-2">
+      <div class="sub-card">
+        <h3>Inputs · Parking <span class="hint">max vehicles parked per location; Type C only where allowed</span></h3>
+        <table id="depotTable"></table>
+        <div class="row" style="margin-top:8px; justify-content: space-between;">
+          <span class="muted" id="depotSummary"></span>
+          <button class="small" id="btnAddDepot">+ Add parking location</button>
+        </div>
+      </div>
+      <div class="sub-card">
+        <h3>Inputs · Vehicles <span class="hint">available for service today and spare factor per type</span></h3>
+        <table id="vehicleTable"></table>
+      </div>
+    </div>
+    <div class="sub-card" style="margin-top:12px">
+      <h3>Pipeline · Vehicles <span class="hint">vehicles entering service each week (added Monday); exits as an average per week</span></h3>
+      <div class="row" id="avgVehOutRow" style="margin-bottom:8px"></div>
+      <div class="scroll"><table id="vehiclePipeline"></table></div>
+    </div>
+  </section>
+
+  <section class="card owner chro">
+    <h2 class="owner-title">CHRO <span class="role">Chief HR Officer – drivers &amp; attendants</span></h2>
+    <div class="grid grid-2">
+      <div class="sub-card">
+        <h3>Inputs · Staff <span class="hint">every route needs 1 driver + 1 attendant</span></h3>
+        <div class="row">
+          <div class="field"><label>Active &amp; eligible drivers</label><input type="number" min="0" id="drivers" class="narrow"></div>
+          <div class="field"><label>Active &amp; eligible attendants</label><input type="number" min="0" id="attendants" class="narrow"></div>
+          <div class="field"><label>Spare factor %</label><input type="number" min="0" max="100" step="0.5" id="staffSpare" class="narrow"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="field"><label>Avg drivers exiting / week</label><input type="number" min="0" step="0.5" id="avgDrOut" class="narrow"></div>
+          <div class="field"><label>Avg attendants exiting / week</label><input type="number" min="0" step="0.5" id="avgAtOut" class="narrow"></div>
+          <div class="field"><label>Usable pairs (today)</label><div id="staffPairsNow" style="font-weight:600; padding:4px 0"></div></div>
+        </div>
+      </div>
+      <div class="sub-card">
+        <h3>Pipeline · Staff <span class="hint">drivers / attendants cleared each week (added Monday)</span></h3>
+        <div class="scroll"><table id="staffPipeline"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Route schedule <span class="hint">routes by start date and vehicle type; once started a route needs a vehicle + crew every day after</span></h2>
+    <div class="scroll"><table id="routeTable"></table></div>
+    <div class="row" style="margin-top:8px; justify-content: space-between;">
+      <span class="muted" id="routeSummary"></span>
+      <button class="small" id="btnAddRoute">+ Add start date</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Rules applied</h2>
+    <ul class="rules">
+      <li>Usable staff/vehicles = floor(count × (1 − spare%)). Usable driver/attendant pairs = min(usable drivers, usable attendants).</li>
+      <li>Each week: available = present + all entries to date − (avg exits/week × weeks elapsed, rounded down). Entries count from the Monday of the week they are entered.</li>
+      <li>Fleet is capped by parking capacity: Type C must fit in Type C-allowed locations; Type A and Minivans fill remaining space anywhere (proportional trim if over capacity).</li>
+      <li>Vehicle → route substitution: Type A wheelchair buses may cover Type A non-wheelchair routes; Type C may cover Type A non-wheelchair routes. Wheelchair routes need Type A wheelchair buses. Minivan routes need minivans, and minivans do nothing else.</li>
+      <li>Serviceable routes = min(vehicle-feasible routes, usable staff pairs). "To close the gap" grosses up for the spare factor so it reads as head-count / vehicles to add.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+/* ---------------- Constants & defaults ---------------- */
+const VT = ['C', 'AN', 'AW', 'M'];
+const VT_LABEL = { C: 'Type C (Big Bus)', AN: 'Type A – no wheelchair', AW: 'Type A – wheelchair', M: 'Minivan' };
+const VT_SHORT = { C: 'Type C', AN: 'A non-WC', AW: 'A WC', M: 'Minivan' };
+const VT_COLOR = { C: '#5b6b7f', AN: '#1f6feb', AW: '#7c3aed', M: '#0e9f9e' };
+const STORAGE_KEY = 'routeCapacityState.v2';
+
+function defaultState() {
+  return {
+    depots: [
+      { name: 'Brooklyn', capacity: 250, allowC: false },
+      { name: 'Queens', capacity: 150, allowC: true },
+      { name: 'Bronx | Zerega', capacity: 150, allowC: true },
+      { name: 'Bronx | Conner', capacity: 100, allowC: true },
+      { name: 'SI – Richmond', capacity: 150, allowC: false },
+      { name: 'SI – Sharrots', capacity: 100, allowC: false },
+    ],
+    staff: { drivers: 700, attendants: 700, sparePct: 0, avgDrOut: 0, avgAtOut: 0 },
+    vehicles: {
+      C: { present: 180, sparePct: 0, avgOut: 0 },
+      AN: { present: 600, sparePct: 0, avgOut: 0 },
+      AW: { present: 40, sparePct: 0, avgOut: 0 },
+      M: { present: 7, sparePct: 0, avgOut: 0 },
+    },
+    pipeline: {},
+    routes: [
+      { date: '2026-09-01', C: 0, AN: 28, AW: 3, M: 0 },
+      { date: '2026-09-09', C: 0, AN: 26, AW: 0, M: 0 },
+      { date: '2026-09-10', C: 173, AN: 551, AW: 20, M: 7 },
+      { date: '2026-09-11', C: 0, AN: 9, AW: 1, M: 0 },
+      { date: '2026-09-14', C: 2, AN: 10, AW: 3, M: 0 },
+      { date: '2026-09-15', C: 0, AN: 6, AW: 0, M: 0 },
+      { date: '2026-09-16', C: 1, AN: 6, AW: 1, M: 0 },
+      { date: '2026-09-17', C: 0, AN: 24, AW: 0, M: 0 },
+      { date: '2026-09-21', C: 1, AN: 7, AW: 2, M: 0 },
+      { date: '2026-09-22', C: 0, AN: 3, AW: 0, M: 0 },
+      { date: '2026-09-24', C: 0, AN: 1, AW: 0, M: 0 },
+      { date: '2026-10-01', C: 0, AN: 2, AW: 0, M: 0 },
+      { date: '2026-10-05', C: 0, AN: 3, AW: 0, M: 0 },
+      { date: '2026-10-07', C: 0, AN: 2, AW: 0, M: 0 },
+      { date: '2026-10-08', C: 0, AN: 2, AW: 0, M: 0 },
+      { date: '2026-10-19', C: 0, AN: 3, AW: 0, M: 0 },
+      { date: '2026-10-21', C: 0, AN: 4, AW: 0, M: 0 },
+    ],
+    resultsFrom: '2026-09-14',
+    horizonEnd: '2026-11-01',
+    allDays: false,
+    expanded: {},
+  };
+}
+
+/* ---------------- Date helpers (local, YYYY-MM-DD strings) ---------------- */
+function parseISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function toISO(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function addDays(s, n) { const d = parseISO(s); d.setDate(d.getDate() + n); return toISO(d); }
+function weekStart(s) { const d = parseISO(s); const off = (d.getDay() + 6) % 7; d.setDate(d.getDate() - off); return toISO(d); }
+function fmt(s) { return parseISO(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function fmtDow(s) { return parseISO(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+function usable(count, sparePct) { return Math.max(0, Math.floor(num(count) * (1 - num(sparePct) / 100))); }
+function grossUp(n, sparePct) { const f = 1 - num(sparePct) / 100; return f <= 0 ? n : Math.ceil(n / f); }
+
+/* ---------------- Core calculation (no DOM) ---------------- */
+function depotCaps(state) {
+  let all = 0, cOnly = 0;
+  for (const d of state.depots) { const c = Math.max(0, num(d.capacity)); all += c; if (d.allowC) cOnly += c; }
+  return { all, cOnly };
+}
+
+function applyDepotCap(raw, caps) {
+  const fleet = {}; let overflow = 0;
+  fleet.C = Math.min(raw.C, caps.cOnly);
+  overflow += raw.C - fleet.C;
+  const remaining = Math.max(0, caps.all - fleet.C);
+  const others = raw.AN + raw.AW + raw.M;
+  if (others <= remaining) { fleet.AN = raw.AN; fleet.AW = raw.AW; fleet.M = raw.M; }
+  else {
+    const f = others > 0 ? remaining / others : 0;
+    fleet.AN = Math.floor(raw.AN * f); fleet.AW = Math.floor(raw.AW * f); fleet.M = Math.floor(raw.M * f);
+    overflow += others - (fleet.AN + fleet.AW + fleet.M);
+  }
+  return { fleet, overflow };
+}
+
+// Supply per week: entries are per-week additions (cumulated), exits are avg/week × weeks elapsed.
+function buildWeeklySupply(state, weeks) {
+  const caps = depotCaps(state);
+  const cumIn = { dr: 0, at: 0 }; for (const t of VT) cumIn[t] = 0;
+  const out = {};
+  weeks.forEach((w, i) => {
+    const p = state.pipeline[w] || {};
+    cumIn.dr += num(p.drIn); cumIn.at += num(p.atIn);
+    for (const t of VT) cumIn[t] += num(p[t + 'In']);
+    const k = i + 1;
+    const drOut = Math.floor(num(state.staff.avgDrOut) * k), atOut = Math.floor(num(state.staff.avgAtOut) * k);
+    const drivers = Math.max(0, num(state.staff.drivers) + cumIn.dr - drOut);
+    const attendants = Math.max(0, num(state.staff.attendants) + cumIn.at - atOut);
+    const uDr = usable(drivers, state.staff.sparePct), uAt = usable(attendants, state.staff.sparePct);
+    const raw = {}, vOut = {};
+    for (const t of VT) { vOut[t] = Math.floor(num(state.vehicles[t].avgOut) * k); raw[t] = Math.max(0, num(state.vehicles[t].present) + cumIn[t] - vOut[t]); }
+    const { fleet, overflow } = applyDepotCap(raw, caps);
+    const usableV = {}; let usableTotal = 0;
+    for (const t of VT) { usableV[t] = usable(fleet[t], state.vehicles[t].sparePct); usableTotal += usableV[t]; }
+    out[w] = { week: w, drivers, attendants, usableDrivers: uDr, usableAttendants: uAt, pairs: Math.min(uDr, uAt), cumIn: { ...cumIn }, drOut, atOut, vOut, raw, fleet, overflow, usable: usableV, usableTotal };
+  });
+  return out;
+}
+
+function allocate(D, U) {
+  const served = {};
+  served.M = Math.min(D.M, U.M);
+  served.AW = Math.min(D.AW, U.AW); const spareAW = U.AW - served.AW;
+  served.C = Math.min(D.C, U.C); const spareC = U.C - served.C;
+  let rem = D.AN - Math.min(D.AN, U.AN);
+  const fromAW = Math.min(rem, spareAW); rem -= fromAW;
+  const fromC = Math.min(rem, spareC); rem -= fromC;
+  served.AN = D.AN - rem;
+  const vehicleFeasible = served.C + served.AN + served.AW + served.M;
+  const unserved = {}; for (const t of VT) unserved[t] = D[t] - served[t];
+  return { served, unserved, vehicleFeasible, fromAW, fromC };
+}
+
+function gapToClose(state, r) {
+  const g = { drivers: 0, attendants: 0, vehicles: {}, depot: r.supply.overflow };
+  const D = r.totalDemand, s = r.supply;
+  if (s.pairs < D) {
+    g.drivers = grossUp(Math.max(0, D - s.usableDrivers), state.staff.sparePct);
+    g.attendants = grossUp(Math.max(0, D - s.usableAttendants), state.staff.sparePct);
+  }
+  for (const t of VT) if (r.unserved[t] > 0) g.vehicles[t] = grossUp(r.unserved[t], state.vehicles[t].sparePct);
+  return g;
+}
+
+function compute(state) {
+  const routes = state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (!routes.length) return null;
+  const startDate = routes[0].date;
+  const endDate = state.horizonEnd && state.horizonEnd >= startDate ? state.horizonEnd : addDays(routes[routes.length - 1].date, 14);
+  const weeks = [];
+  for (let w = weekStart(startDate); w <= weekStart(endDate); w = addDays(w, 7)) weeks.push(w);
+  const supply = buildWeeklySupply(state, weeks);
+
+  const days = [];
+  const cum = { C: 0, AN: 0, AW: 0, M: 0 };
+  let ri = 0;
+  for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
+    const added = { C: 0, AN: 0, AW: 0, M: 0 };
+    let hasNew = false;
+    while (ri < routes.length && routes[ri].date <= d) { for (const t of VT) { const n = num(routes[ri][t]); added[t] += n; if (n) hasNew = true; } ri++; }
+    for (const t of VT) cum[t] += added[t];
+    const w = weekStart(d), s = supply[w];
+    const a = allocate(cum, s.usable);
+    const totalDemand = VT.reduce((x, t) => x + cum[t], 0);
+    const serviceable = Math.min(a.vehicleFeasible, s.pairs);
+    const row = { date: d, week: w, added, hasNew, demand: { ...cum }, totalDemand, supply: s, ...a, serviceable, shortfall: totalDemand - serviceable, binding: bindingLabel(totalDemand, a.vehicleFeasible, s.pairs) };
+    row.gap = gapToClose(state, row);
+    days.push(row);
+  }
+  const weekly = weeks.map(w => {
+    const inWeek = days.filter(x => x.week === w);
+    const last = inWeek[inWeek.length - 1];
+    const added = { C: 0, AN: 0, AW: 0, M: 0 };
+    inWeek.forEach(x => VT.forEach(t => added[t] += x.added[t]));
+    return { ...last, weekAdded: added, weekEnd: addDays(w, 6), days: inWeek };
+  });
+  return { startDate, endDate, weeks, supply, days, weekly };
+}
+
+function bindingLabel(demand, vehicleFeasible, pairs) {
+  if (demand <= Math.min(vehicleFeasible, pairs)) return 'None';
+  const parts = [];
+  if (pairs < demand) parts.push('Staff');
+  if (vehicleFeasible < demand) parts.push('Vehicles');
+  return parts.join(' + ');
+}
+
+/* ---------------- State, persistence ---------------- */
+let state = loadState();
+
+function loadState() {
+  try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) return normalize(JSON.parse(raw)); }
+  catch (e) { console.warn('Failed to load saved state', e); }
+  return defaultState();
+}
+function normalize(s) {
+  const d = defaultState();
+  const out = { ...d, ...s };
+  out.staff = { ...d.staff, ...(s.staff || {}) };
+  out.vehicles = {}; for (const t of VT) out.vehicles[t] = { ...d.vehicles[t], ...((s.vehicles || {})[t] || {}) };
+  out.depots = Array.isArray(s.depots) ? s.depots : d.depots;
+  out.routes = Array.isArray(s.routes) ? s.routes : d.routes;
+  out.pipeline = s.pipeline || {};
+  out.expanded = s.expanded || {};
+  return out;
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); el('saveStatus').textContent = 'Saved locally ' + new Date().toLocaleTimeString(); }
+    catch (e) { el('saveStatus').textContent = 'Could not save to browser storage'; }
+  }, 200);
+}
+
+/* ---------------- DOM helpers ---------------- */
+const el = id => document.getElementById(id);
+function h(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) {
+    if (k === 'class') e.className = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else if (k === 'checked') e.checked = !!attrs[k];
+    else if (k === 'value') e.value = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+function numInput(value, onchange, extra) {
+  return h('input', { type: 'number', min: '0', value: value === undefined || value === null ? '' : value, oninput: e => onchange(e.target.value), ...(extra || {}) });
+}
+const splitText = (obj, filterZero = true) => VT.filter(t => !filterZero || obj[t]).map(t => obj[t] + ' ' + VT_SHORT[t]).join(' · ');
+
+/* ---------------- Input rendering ---------------- */
+function renderDepots() {
+  const t = el('depotTable'); t.innerHTML = '';
+  t.append(h('tr', {}, h('th', { class: 'l' }, 'Parking location'), h('th', {}, 'Max vehicles'), h('th', {}, 'Type C allowed'), h('th', {}, '')));
+  state.depots.forEach((d, i) => {
+    t.append(h('tr', {},
+      h('td', { class: 'l' }, h('input', { type: 'text', value: d.name, oninput: e => { d.name = e.target.value; update(); } })),
+      h('td', {}, numInput(d.capacity, v => { d.capacity = v; update(); })),
+      h('td', { class: 'c' }, h('input', { type: 'checkbox', checked: d.allowC, onchange: e => { d.allowC = e.target.checked; update(); } })),
+      h('td', { class: 'c' }, h('button', { class: 'small danger', onclick: () => { state.depots.splice(i, 1); renderDepots(); update(); } }, '✕'))
+    ));
+  });
+}
+
+function renderStaffVehicles() {
+  el('drivers').value = state.staff.drivers;
+  el('attendants').value = state.staff.attendants;
+  el('staffSpare').value = state.staff.sparePct;
+  el('avgDrOut').value = state.staff.avgDrOut;
+  el('avgAtOut').value = state.staff.avgAtOut;
+  const t = el('vehicleTable'); t.innerHTML = '';
+  t.append(h('tr', {}, h('th', { class: 'l' }, 'Vehicle type'), h('th', {}, 'Available for Service'), h('th', {}, 'Spare factor %'), h('th', {}, 'Usable today')));
+  for (const k of VT) {
+    const v = state.vehicles[k];
+    t.append(h('tr', {},
+      h('td', { class: 'l' }, VT_LABEL[k]),
+      h('td', {}, numInput(v.present, x => { v.present = x; update(); })),
+      h('td', {}, numInput(v.sparePct, x => { v.sparePct = x; update(); }, { max: '100', step: '0.5' })),
+      h('td', { class: 'comp', id: 'usableNow_' + k }, '')
+    ));
+  }
+  const avgRow = el('avgVehOutRow'); avgRow.innerHTML = '';
+  for (const k of VT) {
+    const v = state.vehicles[k];
+    avgRow.append(h('div', { class: 'field' }, h('label', {}, 'Avg ' + VT_SHORT[k] + ' exiting / week'), numInput(v.avgOut, x => { v.avgOut = x; update(); }, { step: '0.5', class: 'narrow' })));
+  }
+}
+
+function currentWeeks() {
+  const routes = state.routes.filter(r => r.date).map(r => r.date).sort();
+  if (!routes.length) return [];
+  const start = routes[0];
+  const end = state.horizonEnd && state.horizonEnd >= start ? state.horizonEnd : addDays(routes[routes.length - 1], 14);
+  const weeks = [];
+  for (let w = weekStart(start); w <= weekStart(end); w = addDays(w, 7)) weeks.push(w);
+  return weeks;
+}
+
+function pipelineCell(w, field) {
+  const p = state.pipeline[w] || (state.pipeline[w] = {});
+  return h('td', {}, numInput(p[field], v => { p[field] = v; update(); }, { placeholder: '0' }));
+}
+
+function renderPipeline() {
+  el('horizonEnd').value = state.horizonEnd || '';
+  el('resultsFrom').value = state.resultsFrom || '';
+  const weeks = currentWeeks();
+  const st = el('staffPipeline'); st.innerHTML = '';
+  st.append(h('tr', {}, h('th', { class: 'l' }, 'Week of (Mon)'), h('th', {}, 'Drivers in'), h('th', {}, 'Attendants in'), h('th', {}, 'Drivers avail.'), h('th', {}, 'Attend. avail.'), h('th', {}, 'Usable pairs')));
+  const vt = el('vehiclePipeline'); vt.innerHTML = '';
+  vt.append(h('tr', {}, h('th', { class: 'l' }, 'Week of (Mon)'), ...VT.map(t => h('th', {}, VT_SHORT[t] + ' in')), ...VT.map(t => h('th', {}, VT_SHORT[t] + ' fleet'))));
+  for (const w of weeks) {
+    st.append(h('tr', {}, h('td', { class: 'l' }, fmt(w)), pipelineCell(w, 'drIn'), pipelineCell(w, 'atIn'),
+      h('td', { class: 'comp', 'data-w': w, 'data-f': 'drivers' }), h('td', { class: 'comp', 'data-w': w, 'data-f': 'attendants' }), h('td', { class: 'comp', 'data-w': w, 'data-f': 'pairs' })));
+    vt.append(h('tr', {}, h('td', { class: 'l' }, fmt(w)), ...VT.map(t => pipelineCell(w, t + 'In')),
+      ...VT.map(t => h('td', { class: 'comp', 'data-w': w, 'data-f': 'fleet_' + t }))));
+  }
+}
+
+function renderRoutes() {
+  const t = el('routeTable'); t.innerHTML = '';
+  t.append(h('tr', {}, h('th', { class: 'l' }, 'Week of (Mon)'), h('th', { class: 'l' }, 'Start date'), ...VT.map(k => h('th', {}, VT_LABEL[k])), h('th', {}, 'Total'), h('th', {}, '')));
+  state.routes.forEach((r, i) => {
+    const total = VT.reduce((x, k) => x + num(r[k]), 0);
+    t.append(h('tr', {},
+      h('td', { class: 'l muted' }, r.date ? fmt(weekStart(r.date)) : ''),
+      h('td', { class: 'l' }, h('input', { type: 'date', value: r.date || '', onchange: e => { r.date = e.target.value; renderRoutes(); renderPipeline(); update(); } })),
+      ...VT.map(k => h('td', {}, numInput(r[k], v => { r[k] = v; update(); }))),
+      h('td', { class: 'comp' }, total),
+      h('td', { class: 'c' }, h('button', { class: 'small danger', onclick: () => { state.routes.splice(i, 1); renderRoutes(); renderPipeline(); update(); } }, '✕'))
+    ));
+  });
+}
+
+/* ---------------- Results: summary + table ---------------- */
+function visibleWeeks(res) {
+  const from = state.resultsFrom && state.resultsFrom <= res.endDate ? state.resultsFrom : res.startDate;
+  const fromWeek = weekStart(from);
+  return { from, weeks: res.weekly.filter(w => w.week >= fromWeek) };
+}
+
+function renderResults(res) {
+  const tbl = el('resultTable'); tbl.innerHTML = '';
+  const sum = el('summary'); sum.innerHTML = '';
+  const notices = el('notices'); notices.innerHTML = '';
+  el('chartWrap').innerHTML = '';
+  if (!res) { tbl.append(h('tr', {}, h('td', { class: 'l' }, 'Add at least one route start date.'))); return; }
+
+  const { from, weeks } = visibleWeeks(res);
+  const shown = res.days.filter(d => d.date >= from);
+  const last = shown[shown.length - 1] || res.days[res.days.length - 1];
+  const firstShort = shown.find(d => d.shortfall > 0);
+  const peak = shown.reduce((m, d) => d.shortfall > m.shortfall ? d : m, shown[0]);
+  const stat = (k, v, c) => h('div', { class: 'stat' }, h('div', { class: 'v ' + (c || '') }, v), h('div', { class: 'k' }, k));
+  const lastGap = last.gap;
+  const gapVeh = VT.filter(t => lastGap.vehicles[t]).map(t => '+' + lastGap.vehicles[t] + ' ' + VT_SHORT[t]).join(', ');
+  const gapStaff = [lastGap.drivers ? '+' + lastGap.drivers + ' drivers' : '', lastGap.attendants ? '+' + lastGap.attendants + ' attendants' : ''].filter(Boolean).join(', ');
+  sum.append(
+    stat('Routes needed by ' + fmt(res.endDate), last.totalDemand),
+    stat('Serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
+    stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
+    stat('First shortfall date', firstShort ? fmtDow(firstShort.date) : 'None', firstShort ? 'bad' : 'ok'),
+    stat('Staff to add by ' + fmt(res.endDate), gapStaff || 'None', gapStaff ? 'bad' : 'ok'),
+    stat('Vehicles to add by ' + fmt(res.endDate), gapVeh || 'None', gapVeh ? 'bad' : 'ok'),
+  );
+  if (peak && peak.shortfall > 0 && peak.date !== last.date && peak.shortfall > last.shortfall) sum.append(stat('Peak shortfall', peak.shortfall + ' on ' + fmt(peak.date), 'bad'));
+  const overflowWeeks = res.weeks.filter(w => res.supply[w].overflow > 0);
+  if (overflowWeeks.length) notices.append(h('div', { class: 'notice' }, 'Parking capacity exceeded in ' + overflowWeeks.length + ' week(s): up to ' + Math.max(...overflowWeeks.map(w => res.supply[w].overflow)) + ' vehicle(s) cannot be parked and are excluded from the fleet.'));
+
+  renderChart(weeks);
+
+  tbl.append(h('tr', {},
+    h('th', { class: 'l' }, 'Week / date'),
+    h('th', {}, 'New routes'),
+    h('th', {}, 'Routes needed'),
+    h('th', {}, 'Usable vehicles'),
+    h('th', {}, 'Staff pairs'),
+    h('th', {}, 'Serviceable'),
+    h('th', {}, 'Vehicle shortfall'),
+    h('th', {}, 'Staff shortfall'),
+    h('th', { class: 'l' }, 'To close the gap')));
+
+  const cells = (r, added) => {
+    const s = r.supply;
+    const newTotal = VT.reduce((x, t) => x + added[t], 0);
+    const vShort = r.totalDemand - r.vehicleFeasible;
+    const sShort = Math.max(0, r.totalDemand - s.pairs);
+    const g = r.gap;
+    const vehLines = [];
+    for (const t of VT) if (g.vehicles[t]) vehLines.push('+' + g.vehicles[t] + ' ' + VT_LABEL[t]);
+    if (g.depot) vehLines.push('+' + g.depot + ' parking spaces');
+    const staffLines = [];
+    if (g.drivers) staffLines.push('+' + g.drivers + ' drivers');
+    if (g.attendants) staffLines.push('+' + g.attendants + ' attendants');
+    const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' },
+      h('span', { class: 'gap-title', style: 'color:' + color }, title),
+      lines.length ? lines.map(x => h('div', {}, x)) : h('div', { class: 'ok' }, 'none needed'));
+    return [
+      h('td', {}, newTotal ? h('span', {}, String(newTotal), h('span', { class: 'sub' }, splitText(added))) : h('span', { class: 'muted' }, '–')),
+      h('td', {}, h('span', { class: 'big' }, r.totalDemand), h('span', { class: 'sub' }, splitText(r.demand))),
+      h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), h('span', { class: 'sub' }, splitText(s.usable, false))),
+      h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), h('span', { class: 'sub' }, s.usableDrivers + ' drivers · ' + s.usableAttendants + ' attendants')),
+      h('td', {}, h('span', { class: 'big' }, r.serviceable)),
+      h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a vehicle: ' + splitText(r.unserved)) : null),
+      h('td', {}, h('span', { class: 'pill ' + (sShort > 0 ? 'bad' : 'ok') }, sShort > 0 ? '−' + sShort : 'OK'), sShort > 0 ? h('span', { class: 'sub bad' }, 'Routes without a crew') : null),
+      h('td', { class: 'l gap' }, gapBlock('Vehicles (CFFO)', vehLines, '#1f6feb'), gapBlock('Staff (CHRO)', staffLines, '#b35c00')),
+    ];
+  };
+
+  for (const w of weeks) {
+    const open = !!state.expanded[w.week];
+    const tr = h('tr', { class: 'wk', onclick: () => { if (open) delete state.expanded[w.week]; else state.expanded[w.week] = true; update(); } },
+      h('td', { class: 'l' }, h('span', { class: 'caret' }, open ? '▾' : '▸'), fmt(w.week) + ' – ' + fmt(w.weekEnd)),
+      ...cells(w, w.weekAdded));
+    tbl.append(tr);
+    if (open) {
+      for (const d of w.days) {
+        if (d.date < from) continue;
+        if (!state.allDays && !d.hasNew && d.date !== d.week) continue;
+        tbl.append(h('tr', { class: 'day' }, h('td', { class: 'l' }, fmtDow(d.date)), ...cells(d, d.added)));
+      }
+    }
+  }
+}
+
+/* ---------------- Chart: grouped bars per week (inline SVG) ---------------- */
+function renderChart(weeks) {
+  const wrap = el('chartWrap'); wrap.innerHTML = '';
+  if (!weeks.length) return;
+  const n = weeks.length;
+  const W = 1200, H = 414, mL = 56, mR = 16, mT = 34, mB = 78;
+  const iw = W - mL - mR, ih = H - mT - mB;
+  const cw = iw / n, bw = Math.min(46, cw * 0.24), gap = Math.max(4, bw * 0.2);
+  let maxY = 0;
+  for (const w of weeks) maxY = Math.max(maxY, w.totalDemand, w.supply.usableTotal, w.supply.pairs);
+  maxY = Math.max(10, Math.ceil(maxY * 1.12 / 50) * 50);
+  const y = v => mT + ih - v / maxY * ih;
+  const ns = 'http://www.w3.org/2000/svg';
+  const S = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Routes needed vs vehicle and staff capacity by week' });
+
+  const steps = 5;
+  for (let i = 0; i <= steps; i++) {
+    const v = Math.round(maxY * i / steps), yy = y(v);
+    svg.append(S('line', { x1: mL, x2: W - mR, y1: yy, y2: yy, stroke: '#e1e5ea' }));
+    svg.append(S('text', { x: mL - 8, y: yy + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#616e7c' }, v));
+  }
+  svg.append(S('line', { x1: mL, x2: W - mR, y1: mT + ih, y2: mT + ih, stroke: '#9aa5b1' }));
+
+  const tip = el('tip');
+  const showTip = (e, html) => { tip.innerHTML = html; tip.style.display = 'block'; moveTip(e); };
+  const moveTip = e => { const pad = 14; let x = e.clientX + pad, yy = e.clientY + pad; if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - pad; if (yy + tip.offsetHeight > window.innerHeight - 8) yy = e.clientY - tip.offsetHeight - pad; tip.style.left = x + 'px'; tip.style.top = yy + 'px'; };
+  const hideTip = () => { tip.style.display = 'none'; };
+  const hover = (node, html) => { node.addEventListener('mouseenter', e => showTip(e, html)); node.addEventListener('mousemove', moveTip); node.addEventListener('mouseleave', hideTip); node.style.cursor = 'default'; };
+  const ttRows = (parts, opacity) => VT.map(t => `<div class="tt-row"><span><i style="background:${VT_COLOR[t]};opacity:${opacity}"></i>${VT_LABEL[t]}</span><span>${parts[t]}</span></div>`).join('');
+  const minLabelH = 15;
+
+  const stacked = (x0, parts, opacity, ttHtml) => {
+    let base = 0;
+    const g = S('g', {});
+    for (const t of VT) {
+      const v = parts[t]; if (!v) continue;
+      const top = y(base + v), hgt = y(base) - top;
+      g.append(S('rect', { x: x0, y: top, width: bw, height: hgt, fill: VT_COLOR[t], 'fill-opacity': opacity, stroke: '#fff', 'stroke-width': 1 }));
+      if (hgt >= minLabelH) g.append(S('text', { x: x0 + bw / 2, y: top + hgt / 2 + 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: opacity < 0.8 ? '#1f2933' : '#fff' }, v));
+      base += v;
+    }
+    // invisible hit area so the tooltip covers the whole bar
+    g.append(S('rect', { x: x0, y: y(base), width: bw, height: Math.max(0, y(0) - y(base)), fill: 'transparent' }));
+    hover(g, ttHtml);
+    svg.append(g);
+    return base;
+  };
+  const topLabel = (x0, v, color) => svg.append(S('text', { x: x0 + bw / 2, y: y(v) - 5, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, fill: color || '#1f2933' }, v));
+  const underLabel = (x0, txt) => svg.append(S('text', { x: x0 + bw / 2, y: mT + ih + 13, 'text-anchor': 'middle', 'font-size': 10, fill: '#616e7c' }, txt));
+
+  weeks.forEach((w, i) => {
+    const cx = mL + cw * (i + 0.5);
+    const xNeed = cx - 1.5 * bw - gap, xVeh = cx - bw / 2, xStaff = cx + bw / 2 + gap;
+    const wk = 'Week of ' + fmt(w.week) + ' (at week end)';
+    if (i % 2) svg.append(S('rect', { x: mL + cw * i, y: mT, width: cw, height: ih, fill: '#f7f9fb' }));
+    // Routes needed (stacked by type)
+    const need = stacked(xNeed, w.demand, 1,
+      `<b>Routes needed</b><br>${wk}${ttRows(w.demand, 1)}<div class="tt-row tt-total"><span>Total</span><span>${w.totalDemand}</span></div>`);
+    topLabel(xNeed, need);
+    // Usable vehicles (stacked by type, lighter)
+    const vShort = w.totalDemand - w.vehicleFeasible;
+    const veh = stacked(xVeh, w.supply.usable, 0.55,
+      `<b>Usable vehicles</b><br>${wk}${ttRows(w.supply.usable, 0.7)}<div class="tt-row tt-total"><span>Total</span><span>${w.supply.usableTotal}</span></div>` +
+      (vShort > 0 ? `<div class="tt-row" style="color:#ff8a80"><span>Routes without a vehicle</span><span>${vShort}</span></div><div style="color:#ff8a80">${splitText(w.unserved)}</div>` : '<div style="color:#8fe3a1">Covers all routes</div>'));
+    topLabel(xVeh, veh, vShort > 0 ? '#c62828' : '#1f2933');
+    // Staff pairs
+    const sp = w.supply.pairs, sShort = Math.max(0, w.totalDemand - sp);
+    const sg = S('g', {});
+    sg.append(S('rect', { x: xStaff, y: y(sp), width: bw, height: y(0) - y(sp), fill: '#d97706', 'fill-opacity': 0.85 }));
+    if (y(0) - y(sp) >= minLabelH) sg.append(S('text', { x: xStaff + bw / 2, y: y(sp / 2) + 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: '#fff' }, sp));
+    hover(sg, `<b>Usable staff pairs</b><br>${wk}<div class="tt-row"><span>Usable drivers</span><span>${w.supply.usableDrivers}</span></div><div class="tt-row"><span>Usable attendants</span><span>${w.supply.usableAttendants}</span></div><div class="tt-row tt-total"><span>Pairs (min)</span><span>${sp}</span></div>` +
+      (sShort > 0 ? `<div class="tt-row" style="color:#ff8a80"><span>Routes without a crew</span><span>${sShort}</span></div>` : '<div style="color:#8fe3a1">Covers all routes</div>'));
+    svg.append(sg);
+    topLabel(xStaff, sp, sShort > 0 ? '#c62828' : '#1f2933');
+    // Serviceable line across the cluster
+    svg.append(S('line', { x1: xNeed - 4, x2: xStaff + bw + 4, y1: y(w.serviceable), y2: y(w.serviceable), stroke: '#1a7f37', 'stroke-width': 3 }));
+    underLabel(xNeed, 'Need'); underLabel(xVeh, 'Vehicles'); underLabel(xStaff, 'Staff');
+    // Week label + shortfall
+    svg.append(S('text', { x: cx, y: mT + ih + 30, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, fill: '#1f2933' }, 'Wk ' + fmt(w.week)));
+    svg.append(S('text', { x: cx, y: mT + ih + 46, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, fill: w.shortfall > 0 ? '#c62828' : '#1a7f37' }, w.shortfall > 0 ? 'Short ' + w.shortfall : 'OK'));
+    if (w.shortfall > 0) svg.append(S('text', { x: cx, y: mT + ih + 60, 'text-anchor': 'middle', 'font-size': 11, fill: '#c62828' }, w.binding.replace('Vehicles', 'Veh')));
+  });
+
+  const legend = h('div', { class: 'legend' },
+    h('span', { style: 'font-weight:600' }, 'Bars: Need · Vehicles · Staff'),
+    h('span', { class: 'sep' }, '|'),
+    ...VT.map(t => h('span', {}, h('i', { style: 'background:' + VT_COLOR[t] }), VT_SHORT[t])),
+    h('span', {}, h('i', { style: 'background:#d97706' }), 'Staff pairs'),
+    h('span', {}, h('i', { class: 'line', style: 'background:#1a7f37' }), 'Serviceable routes'),
+    h('span', { class: 'muted' }, 'Hover a bar for details'));
+  wrap.append(legend, svg);
+}
+
+/* ---------------- Computed cells in input sections ---------------- */
+function updateComputedCells(res) {
+  const uDr = usable(state.staff.drivers, state.staff.sparePct), uAt = usable(state.staff.attendants, state.staff.sparePct);
+  el('staffPairsNow').textContent = Math.min(uDr, uAt) + ' (drivers ' + uDr + ', attendants ' + uAt + ')';
+  for (const t of VT) { const c = el('usableNow_' + t); if (c) c.textContent = usable(state.vehicles[t].present, state.vehicles[t].sparePct); }
+  const caps = depotCaps(state);
+  const fleetNow = VT.reduce((x, t) => x + num(state.vehicles[t].present), 0);
+  el('depotSummary').textContent = 'Total parking ' + caps.all + ' (Type C-eligible ' + caps.cOnly + ') · present fleet ' + fleetNow + (num(state.vehicles.C.present) > caps.cOnly ? ' · Type C exceeds eligible capacity!' : '') + (fleetNow > caps.all ? ' · fleet exceeds total capacity!' : '');
+  const totalRoutes = state.routes.reduce((x, r) => x + VT.reduce((y, t) => y + num(r[t]), 0), 0);
+  el('routeSummary').textContent = state.routes.length + ' start dates · ' + totalRoutes + ' routes total';
+  document.querySelectorAll('td.comp[data-w]').forEach(td => {
+    const s = res && res.supply[td.dataset.w];
+    if (!s) { td.textContent = ''; return; }
+    const f = td.dataset.f;
+    if (f.startsWith('fleet_')) { const t = f.slice(6); td.textContent = s.fleet[t] + (s.raw[t] !== s.fleet[t] ? ' (' + s.raw[t] + ')' : ''); td.title = s.raw[t] !== s.fleet[t] ? 'Capped by parking capacity; raw ' + s.raw[t] : ''; }
+    else td.textContent = s[f];
+  });
+}
+
+function refreshHighlights() {
+  document.querySelectorAll('main input[type=number]').forEach(i => i.classList.toggle('nz', num(i.value) !== 0));
+}
+
+function update() {
+  const res = compute(state);
+  renderResults(res);
+  updateComputedCells(res);
+  refreshHighlights();
+  save();
+}
+
+/* ---------------- Printable report / PDF ---------------- */
+function nzTd(v, extraClass) { return h('td', { class: (extraClass || '') + (num(v) !== 0 ? ' nzc' : '') }, v === '' || v === undefined || v === null ? '0' : String(v)); }
+function staticTable(headers, rows, firstColLeft = true) {
+  const t = h('table', {}, h('tr', {}, ...headers.map((x, i) => h('th', { class: i === 0 && firstColLeft ? 'l' : '' }, x))));
+  for (const r of rows) t.append(h('tr', {}, ...r.map((c, i) => i === 0 && firstColLeft ? h('td', { class: 'l' }, String(c)) : (c && c.nodeType ? c : nzTd(c)))));
+  return t;
+}
+function buildReport(res) {
+  const old = el('report'); if (old) old.remove();
+  const rep = h('div', { id: 'report' });
+  const now = new Date();
+  const { from } = res ? visibleWeeks(res) : { from: '' };
+  rep.append(
+    h('div', { class: 'rep-actions' }, h('button', { class: 'primary', onclick: () => window.print() }, 'Print / Save as PDF'), h('button', { onclick: closeReport }, 'Back to planner')),
+    h('h1', {}, 'Route Capacity Plan'),
+    h('div', { class: 'rep-meta' }, 'Generated ' + now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) +
+      (res ? ' · Results ' + fmt(from) + ' – ' + fmt(res.endDate) + ' · weeks start Monday' : '')));
+  if (res) {
+    rep.append(h('h2', {}, 'Summary'), el('summary').cloneNode(true), el('notices').cloneNode(true));
+    rep.append(h('h2', {}, 'Capacity vs. routes needed by week'), el('chartWrap').cloneNode(true));
+    rep.append(h('h2', {}, 'Weekly plan' + (Object.keys(state.expanded).length ? ' (expanded weeks show individual dates)' : '')), el('resultTable').cloneNode(true));
+  }
+  const weeks = currentWeeks();
+  // CFFO
+  rep.append(h('h2', { class: 'cffo' }, 'CFFO – vehicles & parking'));
+  const caps = depotCaps(state);
+  rep.append(h('div', { class: 'two' },
+    h('div', {}, h('h3', {}, 'Parking (total ' + caps.all + ', Type C-eligible ' + caps.cOnly + ')'),
+      staticTable(['Parking location', 'Max vehicles', 'Type C allowed'], state.depots.map(d => [d.name, d.capacity, h('td', { class: 'c' }, d.allowC ? 'Yes' : '–')]))),
+    h('div', {}, h('h3', {}, 'Vehicles'),
+      staticTable(['Vehicle type', 'Available for Service', 'Spare factor %', 'Usable today', 'Avg exiting / week'], VT.map(t => [VT_LABEL[t], state.vehicles[t].present, state.vehicles[t].sparePct, usable(state.vehicles[t].present, state.vehicles[t].sparePct), state.vehicles[t].avgOut])))));
+  rep.append(h('h3', {}, 'Vehicle pipeline (entering service, added Monday) and resulting fleet'),
+    staticTable(['Week of', ...VT.map(t => VT_SHORT[t] + ' in'), ...VT.map(t => VT_SHORT[t] + ' fleet')],
+      weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), ...VT.map(t => num(p[t + 'In'])), ...VT.map(t => h('td', { class: 'comp' }, s ? String(s.fleet[t]) : ''))]; })));
+  // CHRO
+  rep.append(h('h2', { class: 'chro' }, 'CHRO – drivers & attendants'));
+  rep.append(h('div', { class: 'two' },
+    h('div', {}, h('h3', {}, 'Staff'),
+      staticTable(['', 'Active & eligible', 'Spare factor %', 'Usable today', 'Avg exiting / week'], [
+        ['Drivers', state.staff.drivers, state.staff.sparePct, usable(state.staff.drivers, state.staff.sparePct), state.staff.avgDrOut],
+        ['Attendants', state.staff.attendants, state.staff.sparePct, usable(state.staff.attendants, state.staff.sparePct), state.staff.avgAtOut]])),
+    h('div', {}, h('h3', {}, 'Staff pipeline (cleared, added Monday) and resulting availability'),
+      staticTable(['Week of', 'Drivers in', 'Attendants in', 'Drivers avail.', 'Attend. avail.', 'Usable pairs'],
+        weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), num(p.drIn), num(p.atIn), h('td', { class: 'comp' }, s ? String(s.drivers) : ''), h('td', { class: 'comp' }, s ? String(s.attendants) : ''), h('td', { class: 'comp' }, s ? String(s.pairs) : '')]; })))));
+  // Routes
+  rep.append(h('h2', {}, 'Route schedule'),
+    staticTable(['Week of', 'Start date', ...VT.map(t => VT_LABEL[t]), 'Total'],
+      state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date)).map(r => [fmt(weekStart(r.date)), h('td', { class: 'l' }, fmtDow(r.date)), ...VT.map(t => num(r[t])), h('td', { class: 'comp' }, String(VT.reduce((x, t) => x + num(r[t]), 0)))])));
+  rep.append(h('h2', {}, 'Rules applied'), document.querySelector('.rules').cloneNode(true));
+  document.body.append(rep);
+  return rep;
+}
+function openReport(print) {
+  buildReport(compute(state));
+  document.body.classList.add('printing');
+  window.scrollTo(0, 0);
+  if (print) setTimeout(() => window.print(), 50);
+}
+function closeReport() {
+  document.body.classList.remove('printing');
+  const r = el('report'); if (r) r.remove();
+}
+function renderAll() { renderDepots(); renderStaffVehicles(); renderPipeline(); renderRoutes(); el('allDays').checked = !!state.allDays; update(); }
+
+/* ---------------- Wiring ---------------- */
+el('drivers').addEventListener('input', e => { state.staff.drivers = e.target.value; update(); });
+el('attendants').addEventListener('input', e => { state.staff.attendants = e.target.value; update(); });
+el('staffSpare').addEventListener('input', e => { state.staff.sparePct = e.target.value; update(); });
+el('avgDrOut').addEventListener('input', e => { state.staff.avgDrOut = e.target.value; update(); });
+el('avgAtOut').addEventListener('input', e => { state.staff.avgAtOut = e.target.value; update(); });
+el('horizonEnd').addEventListener('change', e => { state.horizonEnd = e.target.value; renderPipeline(); update(); });
+el('resultsFrom').addEventListener('change', e => { state.resultsFrom = e.target.value; update(); });
+el('allDays').addEventListener('change', e => { state.allDays = e.target.checked; update(); });
+el('btnExpandAll').addEventListener('click', () => { for (const w of currentWeeks()) state.expanded[w] = true; update(); });
+el('btnCollapseAll').addEventListener('click', () => { state.expanded = {}; update(); });
+el('btnAddDepot').addEventListener('click', () => { state.depots.push({ name: 'New location', capacity: 0, allowC: false }); renderDepots(); update(); });
+el('btnAddRoute').addEventListener('click', () => {
+  const dates = state.routes.map(r => r.date).filter(Boolean).sort();
+  state.routes.push({ date: dates.length ? addDays(dates[dates.length - 1], 1) : toISO(new Date()), C: 0, AN: 0, AW: 0, M: 0 });
+  renderRoutes(); renderPipeline(); update();
+});
+el('btnExport').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: 'route-capacity-' + toISO(new Date()) + '.json' });
+  document.body.append(a); a.click(); a.remove();
+});
+el('btnPdf').addEventListener('click', () => openReport(true));
+window.addEventListener('afterprint', () => { if (document.body.classList.contains('printing')) closeReport(); });
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('input[type=number]')) e.target.classList.toggle('nz', num(e.target.value) !== 0); });
+el('btnImport').addEventListener('click', () => el('fileInput').click());
+el('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { try { state = normalize(JSON.parse(reader.result)); renderAll(); } catch (err) { alert('Invalid JSON file: ' + err.message); } };
+  reader.readAsText(f); e.target.value = '';
+});
+el('btnReset').addEventListener('click', () => { if (confirm('Reset all inputs to the built-in defaults? Your saved data will be replaced.')) { state = defaultState(); renderAll(); } });
+
+renderAll();
+if (location.search.includes('report')) openReport(false);
+</script>
+</body>
+</html>
