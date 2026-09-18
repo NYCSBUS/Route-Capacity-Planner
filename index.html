@@ -160,6 +160,7 @@
   table.results td.returning .ret-block { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.35; }
   table.results td.returning .ret-title { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; color: #7c3aed; }
   table.results td.returning .ret-title.new { color: var(--accent); }
+  table.results td.returning .ret-title.out { color: var(--bad); }
   tr.oos-weeks td { background: #f7f9fb; }
   .pill { display: inline-block; min-width: 46px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 13px; }
   .pill.bad { background: #fdecea; color: var(--bad); }
@@ -309,9 +310,14 @@
           <div class="field"><label>Status counts as of</label><input type="date" id="oosAsOf"></div>
           <span class="muted" id="oosSummary"></span>
         </div>
+        <h4 style="margin:4px 0 6px">Current out-of-service vehicles by status</h4>
         <div class="scroll"><table id="oosTable"></table></div>
         <h4 style="margin:12px 0 6px">Returning to service (computed) <span class="hint">these vehicles are added to the fleet on the Monday shown</span></h4>
         <div class="scroll"><table id="oosReturns"></table></div>
+        <h4 style="margin:16px 0 6px">Recurring exits – existing vehicles <span class="hint">vehicles per week going out of service from today onward; each returns after the average duration, so the number out plateaus at rate × weeks</span></h4>
+        <div class="scroll"><table id="recTable"></table></div>
+        <h4 style="margin:12px 0 6px">Recurring exits by week (computed) <span class="hint">exits per week equal the rates above; "back" = returned that week (shown under Old in the Outputs table); "out" = currently out of service through recurring exits (subtracted from the fleet)</span></h4>
+        <div class="scroll"><table id="recWeekly"></table></div>
       </div>
       <div class="sub-card" style="margin-top:12px">
         <h3>Pipeline 2 · New vehicles <span class="hint">new vehicles entering service each week (added Monday)</span></h3>
@@ -386,7 +392,7 @@
         <ul class="rules">
           <li>Usable count = floor(count × (1 − spare %)). Spare factor is set by each owner on their tab.</li>
           <li>Weeks start Monday. Pipeline entries and returns are added at the start of the week entered; staff exits are an average per week, accumulated and rounded down.</li>
-          <li>Staff exits are permanent (average per week). Vehicles have no exit rate: instead, vehicles currently out of service are entered by status in Pipeline 1 and return after each status's return time (Long Term 12 wk, Out of Service 6 wk, For Vendor – OOS 5 wk, At Vendor 4 wk by default). New vehicles arrive via Pipeline 2.</li>
+          <li>Staff exits are permanent (average per week). Vehicle exits are temporary. Pipeline 1 holds (a) vehicles currently out of service by status, returning after each status's return time (Long Term 12 wk, Out of Service 6 wk, For Vendor – OOS 5 wk, At Vendor 4 wk by default), and (b) recurring exits of existing vehicles per week – unscheduled events (back after 6 wk) and scheduled inspections (back after 2 wk) – so vehicles out through recurring exits plateau at rate × weeks. New vehicles arrive via Pipeline 2.</li>
           <li>"To close the gap" is grossed up for the spare factor so it reads as head-count / vehicles to add.</li>
         </ul>
       </div>
@@ -403,8 +409,11 @@ const VT_SHORT = { C: 'Type C', AN: 'A non-WC', AW: 'A WC', M: 'Minivan' };
 // Out-of-service statuses (Pipeline 1). Order = longest return time first.
 const OOS = ['lt', 'oos', 'fvo', 'av'];
 const OOS_LABEL = { lt: 'Out of Service – Long Term', oos: 'Out of Service', fvo: 'For Vendor – Out of Service', av: 'At Vendor' };
+// Recurring out-of-service flows for existing vehicles: a rate per week per type, each returning after an average duration.
+const REC = ['un', 'sched'];
+const REC_LABEL = { un: 'Unscheduled (breakdowns, collisions)', sched: 'Scheduled inspections' };
 const VT_COLOR = { C: '#5b6b7f', AN: '#1f6feb', AW: '#7c3aed', M: '#0e9f9e' };
-const STORAGE_KEY = 'routeCapacityState.v9';
+const STORAGE_KEY = 'routeCapacityState.v11';
 
 function defaultRules() {
   return {
@@ -428,6 +437,8 @@ function defaultState() {
     oos: {
       asOf: '2026-09-17', weeks: { lt: 12, oos: 6, fvo: 5, av: 4 },
       counts: { C: { lt: 3, oos: 1 }, AN: { lt: 1, oos: 47, fvo: 1, av: 17 }, AW: { oos: 2, av: 1 }, M: { oos: 3, av: 11 } },
+      // Recurring exits: vehicles per week going out of service, by cause; each returns after the avg duration below.
+      recurring: { weeks: { un: 6, sched: 2 }, rates: { C: { un: 2, sched: 12 }, AN: { un: 10, sched: 44 }, AW: { un: 1, sched: 0.5 }, M: { un: 1, sched: 0.5 } } },
     },
     pipeline: {
       '2026-09-21': { ANIn: 21, drIn: 5, atIn: 5 },
@@ -476,13 +487,19 @@ const HELP = {
   usableToday: 'Available for service minus the spare factor (rounded down).',
   weekOf: 'Week starting this Monday. Entries take effect from that Monday.',
   vehIn: 'New vehicles of this type entering service during that week (deliveries). Returns from out-of-service status belong in Pipeline 1, not here.',
-  fleet: 'Resulting fleet that week: available today + new vehicles to date (Pipeline 2) + out-of-service vehicles returned to date (Pipeline 1), capped by parking (raw count shown in brackets if capped).',
+  fleet: 'Resulting fleet that week: available today + new vehicles to date (Pipeline 2) + out-of-service vehicles returned to date (Pipeline 1) − vehicles currently out through recurring exits, capped by parking (raw count shown in brackets if capped).',
   oosCount: 'Vehicles of this type currently in this status. These are NOT included in "Available for Service"; they re-enter the fleet when the status\'s return time elapses.',
   oosTotal: 'All vehicles of this type currently out of service across the statuses.',
   oosWeeks: 'Weeks after the as-of date before vehicles in this status return to service. Returns land on the Monday of that week.',
   oosRetWeek: 'Week (Monday) on which vehicles in this status return. Returns dated before the first week shown are treated as already back.',
   oosRetStatus: 'Status and its return time.',
-  returning: 'Vehicles added to the fleet in this period. Old = existing vehicles returning from out-of-service status (Pipeline 1). New = new vehicles entering service (Pipeline 2). Both land on the Monday of the week.',
+  returning: 'Vehicle movements in this period. Old = existing vehicles returning from out-of-service status (Pipeline 1) or from a recurring exit. New = new vehicles entering service (Pipeline 2). Out = existing vehicles newly out of service through recurring exits (unscheduled events, inspections). All land on the Monday of the week.',
+  recRate: 'Average vehicles of this type going out of service each week for this cause. Fractional rates accumulate and round down (e.g. 2.5/week → 2, 5, 7, 10 …).',
+  recWeeks: 'Average weeks a vehicle is out of service for this cause before it returns to the fleet.',
+  recTotal: 'All recurring exits per week for this type.',
+  recSteady: 'Vehicles of this type out of service once the cycle is in steady state: Σ rate × weeks out. The fleet is reduced by this amount from that point on.',
+  recBack: 'Existing vehicles of this type returning from a recurring exit that week.',
+  recOut: 'Vehicles of this type currently out of service through recurring exits (exits to date − returns to date). Subtracted from the fleet.',
   drIn: 'Drivers cleared and ready to work that week.',
   atIn: 'Attendants cleared and ready to work that week.',
   drAvail: 'Drivers available that week: today\'s count + cleared to date − average exits to date.',
@@ -560,18 +577,30 @@ function buildWeeklySupply(state, weeks) {
     const attendants = Math.max(0, num(state.staff.attendants) + cumIn.at - atOut);
     const uDr = usable(drivers, state.staff.sparePct), uAt = usable(attendants, state.staff.sparePct);
     const pairs = rules.attendantRequired ? Math.min(uDr, uAt) : uDr;
-    // Fleet = available today + new vehicles to date (Pipeline 2) + out-of-service vehicles that have returned (Pipeline 1).
-    const newIn = {}, oldBack = {}, raw = {};
+    // Fleet = available today + new vehicles to date (Pipeline 2) + out-of-service vehicles that have returned (Pipeline 1 snapshot)
+    //         − existing vehicles currently out through recurring exits (unscheduled events / scheduled inspections), which return after their avg duration.
+    const newIn = {}, p1Back = {}, recBack = {}, recExit = {}, recOut = {}, oldBack = {}, raw = {};
+    const rec = state.oos.recurring || { weeks: {}, rates: {} };
     for (const t of VT) {
       newIn[t] = num(p[t + 'In']);
-      oldBack[t] = returns[w] ? returns[w][t] : 0;
-      cumBack[t] += oldBack[t];
-      raw[t] = Math.max(0, num(state.vehicles[t].present) + cumIn[t] + cumBack[t]);
+      p1Back[t] = returns[w] ? returns[w][t] : 0;
+      cumBack[t] += p1Back[t];
+      recBack[t] = 0; recExit[t] = 0; recOut[t] = 0;
+      for (const c of REC) {
+        const rate = num((rec.rates[t] || {})[c]), R = Math.max(0, num(rec.weeks[c]));
+        if (!rate) continue;
+        const gone = Math.floor(rate * k), back = Math.floor(rate * Math.max(0, k - R)), backPrev = Math.floor(rate * Math.max(0, k - 1 - R));
+        recExit[t] += gone - Math.floor(rate * (k - 1));   // newly out this week
+        recBack[t] += back - backPrev;                      // returned this week
+        recOut[t] += gone - back;                           // currently out
+      }
+      oldBack[t] = p1Back[t] + recBack[t];
+      raw[t] = Math.max(0, num(state.vehicles[t].present) + cumIn[t] + cumBack[t] - recOut[t]);
     }
     const { fleet, overflow } = rules.enforceParking ? applyDepotCap(raw, caps) : { fleet: { ...raw }, overflow: 0 };
     const usableV = {}; let usableTotal = 0;
     for (const t of VT) { usableV[t] = usable(fleet[t], state.vehicles[t].sparePct); usableTotal += usableV[t]; }
-    out[w] = { week: w, drivers, attendants, usableDrivers: uDr, usableAttendants: uAt, pairs, cumIn: { ...cumIn }, cumBack: { ...cumBack }, drOut, atOut, newIn, oldBack, raw, fleet, overflow, usable: usableV, usableTotal };
+    out[w] = { week: w, drivers, attendants, usableDrivers: uDr, usableAttendants: uAt, pairs, cumIn: { ...cumIn }, cumBack: { ...cumBack }, drOut, atOut, newIn, oldBack, p1Back, recBack, recExit, recOut, raw, fleet, overflow, usable: usableV, usableTotal };
   });
   return out;
 }
@@ -635,7 +664,7 @@ function compute(state) {
     const totalDemand = VT.reduce((x, t) => x + cum[t], 0);
     const serviceable = Math.min(a.vehicleFeasible, s.pairs);
     const zero = { C: 0, AN: 0, AW: 0, M: 0 };
-    const returning = d === w ? { old: s.oldBack, new: s.newIn } : { old: zero, new: zero };   // vehicles land on the Monday
+    const returning = d === w ? { old: s.oldBack, new: s.newIn, out: s.recExit } : { old: zero, new: zero, out: zero };   // vehicles land on the Monday
     const row = { date: d, week: w, added, addedTotal: VT.reduce((x, t) => x + added[t], 0), subAdded, subTotal, hasNew, returning, demand: { ...cum }, totalDemand, supply: s, ...a, serviceable, shortfall: totalDemand - serviceable, binding: bindingLabel(totalDemand, a.vehicleFeasible, s.pairs) };
     row.gap = gapToClose(state, row);
     days.push(row);
@@ -646,7 +675,7 @@ function compute(state) {
     const added = { C: 0, AN: 0, AW: 0, M: 0 };
     let subAdded = 0;
     inWeek.forEach(x => { VT.forEach(t => added[t] += x.added[t]); subAdded += x.subAdded; });
-    return { ...last, weekAdded: added, weekAddedTotal: VT.reduce((x, t) => x + added[t], 0), weekSubAdded: subAdded, weekEnd: addDays(w, 6), days: inWeek, returning: { old: last.supply.oldBack, new: last.supply.newIn } };
+    return { ...last, weekAdded: added, weekAddedTotal: VT.reduce((x, t) => x + added[t], 0), weekSubAdded: subAdded, weekEnd: addDays(w, 6), days: inWeek, returning: { old: last.supply.oldBack, new: last.supply.newIn, out: last.supply.recExit } };
   });
   return { startDate, endDate, weeks, supply, days, weekly, subTotal };
 }
@@ -686,6 +715,9 @@ function normalize(s) {
   const so = s.oos || {};
   out.oos = { asOf: so.asOf || d.oos.asOf, weeks: { ...d.oos.weeks, ...(so.weeks || {}) }, counts: {} };
   for (const t of VT) out.oos.counts[t] = { ...((so.counts || {})[t] || {}) };
+  const sr = so.recurring || {};
+  out.oos.recurring = { weeks: { ...d.oos.recurring.weeks, ...(sr.weeks || {}) }, rates: {} };
+  for (const t of VT) out.oos.recurring.rates[t] = so.recurring ? { un: 0, sched: 0, ...((sr.rates || {})[t] || {}) } : { ...d.oos.recurring.rates[t] };
   out.depots = Array.isArray(s.depots) ? s.depots : d.depots;
   out.routes = (Array.isArray(s.routes) ? s.routes : d.routes).map(r => ({ ...r, sub: !!r.sub, note: r.note || '' }));
   out.pipeline = s.pipeline || {};
@@ -780,6 +812,16 @@ function renderOos() {
     t.append(h('tr', {}, h('td', { class: 'l' }, VT_LABEL[k]),
       ...OOS.map(s => h('td', {}, numInput(c[s], v => { c[s] = v; update(); }))),
       h('td', { class: 'comp', id: 'oosTotal_' + k }, '')));
+  }
+  const rec = o.recurring, rt = el('recTable'); rt.innerHTML = '';
+  rt.append(h('tr', {}, TH('Vehicle type', HELP.vehType, 'l'), ...REC.map(c => TH(REC_LABEL[c] + ' / week', HELP.recRate)), TH('Total out / week', HELP.recTotal), TH('Out at steady state', HELP.recSteady)));
+  rt.append(h('tr', { class: 'oos-weeks' }, h('td', { class: 'l muted' }, 'Avg weeks out before returning'),
+    ...REC.map(c => h('td', {}, numInput(rec.weeks[c], v => { rec.weeks[c] = v; update(); }, { step: '1', class: 'narrow', title: HELP.recWeeks }))), h('td', {}, ''), h('td', {}, '')));
+  for (const k of VT) {
+    const r = rec.rates[k] || (rec.rates[k] = {});
+    rt.append(h('tr', {}, h('td', { class: 'l' }, VT_LABEL[k]),
+      ...REC.map(c => h('td', {}, numInput(r[c], v => { r[c] = v; update(); }, { step: '0.5' }))),
+      h('td', { class: 'comp', id: 'recTotal_' + k }, ''), h('td', { class: 'comp', id: 'recSteady_' + k }, '')));
   }
 }
 function currentWeeks() {
@@ -884,7 +926,7 @@ function renderResults(res) {
   renderChart(weeks);
 
   tbl.append(h('thead', {}, h('tr', {},
-    TH('Week / date', HELP.period, 'l'), TH('Routes starting this week / date', HELP.newRoutes), TH('Routes serviced', HELP.needed), TH('Vehicles returning / arriving', HELP.returning), TH('Usable vehicles', HELP.vehicles),
+    TH('Week / date', HELP.period, 'l'), TH('Routes starting this week / date', HELP.newRoutes), TH('Routes serviced', HELP.needed), TH('Vehicles returning / arriving / out', HELP.returning), TH('Usable vehicles', HELP.vehicles),
     TH(state.rules.attendantRequired ? 'Staff crews' : 'Drivers', state.rules.attendantRequired ? HELP.staff : HELP.staffDriversOnly),
     TH('Routes serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l'))));
   const tbody = h('tbody', {}); tbl.append(tbody);
@@ -904,11 +946,14 @@ function renderResults(res) {
         subAdded ? h('span', { class: 'sub muted', title: HELP.startingSub }, '+' + subAdded + ' subcontracted (excluded)') : null) : h('span', { class: 'muted' }, '–')),
       h('td', {}, h('span', { class: 'big' }, r.totalDemand), subLines(splitArr(r.demand))),
       (() => {
-        const ro = r.returning.old, rn = r.returning.new, oldT = VT.reduce((x, t) => x + ro[t], 0), newT = VT.reduce((x, t) => x + rn[t], 0);
-        if (!oldT && !newT) return h('td', {}, h('span', { class: 'muted' }, '–'));
-        return h('td', { class: 'returning' }, h('span', { class: 'big ok' }, '+' + (oldT + newT)),
-          oldT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title' }, 'Old (returning) ' + oldT), ...splitArr(ro).map(x => h('div', {}, x))) : null,
-          newT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title new' }, 'New ' + newT), ...splitArr(rn).map(x => h('div', {}, x))) : null);
+        const ro = r.returning.old, rn = r.returning.new, rx = r.returning.out;
+        const oldT = VT.reduce((x, t) => x + ro[t], 0), newT = VT.reduce((x, t) => x + rn[t], 0), outT = VT.reduce((x, t) => x + rx[t], 0);
+        if (!oldT && !newT && !outT) return h('td', {}, h('span', { class: 'muted' }, '–'));
+        const net = oldT + newT - outT;
+        return h('td', { class: 'returning' }, h('span', { class: 'big ' + (net > 0 ? 'ok' : net < 0 ? 'bad' : '') }, (net > 0 ? '+' : '') + net), h('span', { class: 'sub muted' }, 'net'),
+          oldT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title' }, 'Old (returning) +' + oldT), ...splitArr(ro).map(x => h('div', {}, x))) : null,
+          newT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title new' }, 'New +' + newT), ...splitArr(rn).map(x => h('div', {}, x))) : null,
+          outT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title out' }, 'Out (recurring) −' + outT), ...splitArr(rx).map(x => h('div', {}, x))) : null);
       })(),
       h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), subLines(splitArr(s.usable, false))),
       h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), subLines([s.usableDrivers + ' drivers', ...(state.rules.attendantRequired ? [s.usableAttendants + ' attendants'] : [])])),
@@ -1101,7 +1146,10 @@ function renderAssumptions(res) {
     h('h4', {}, 'Pipeline 1 – out-of-service vehicles as of ' + fmt(state.oos.asOf || weeks[0]) + ' (return time in weeks)'),
     staticTable([['Vehicle type', HELP.vehType], ...OOS.map(s => [OOS_LABEL[s] + ' (' + num(state.oos.weeks[s]) + ' wk)', HELP.oosCount]), ['Total out', HELP.oosTotal]],
       VT.map(t => { const c = state.oos.counts[t] || {}; return [VT_LABEL[t], ...OOS.map(s => num(c[s])), comp(OOS.reduce((x, s) => x + num(c[s]), 0))]; })),
-    h('h4', {}, 'Pipeline 2 – new vehicles and resulting fleet (fleet includes returns from Pipeline 1)'),
+    h('h4', {}, 'Pipeline 1 – recurring exits of existing vehicles (per week; return after avg weeks out)'),
+    staticTable([['Vehicle type', HELP.vehType], ...REC.map(c => [REC_LABEL[c] + ' / wk (' + num(state.oos.recurring.weeks[c]) + ' wk out)', HELP.recRate]), ['Out at steady state', HELP.recSteady]],
+      VT.map(t => { const r = state.oos.recurring.rates[t] || {}; return [VT_LABEL[t], ...REC.map(c => num(r[c])), comp(REC.reduce((x, c) => x + Math.floor(num(r[c]) * Math.max(0, num(state.oos.recurring.weeks[c]))), 0))]; })),
+    h('h4', {}, 'Pipeline 2 – new vehicles and resulting fleet (fleet includes Pipeline 1 returns and recurring exits)'),
     staticTable([['Week of', HELP.weekOf], ...VT.map(t => [VT_SHORT[t] + ' new', HELP.vehIn]), ...VT.map(t => [VT_SHORT[t] + ' fleet', HELP.fleet])],
       weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), ...VT.map(t => num(p[t + 'In'])), ...VT.map(t => comp(s ? s.fleet[t] : ''))]; })));
   box.append(h('h3', { class: 'chro' }, 'CHRO – drivers & attendants'),
@@ -1155,6 +1203,19 @@ function updateComputedCells(res) {
     const n = VT.reduce((x, t) => x + num((o.counts[t] || {})[r.s]), 0);
     rt.append(h('tr', { class: n ? '' : 'muted' }, h('td', { class: 'l' }, fmt(r.w) + (r.w > (weeks[weeks.length - 1] || r.w) ? ' (after horizon)' : '')), h('td', { class: 'l' }, OOS_LABEL[r.s] + ' · ' + num(o.weeks[r.s]) + ' wk'),
       ...VT.map(t => nzTd(num((o.counts[t] || {})[r.s]))), h('td', { class: 'comp' }, n)));
+  }
+  // Recurring exits: per-type totals and the weekly out/back table
+  const rec = o.recurring;
+  for (const t of VT) {
+    const rates = rec.rates[t] || {};
+    const total = REC.reduce((x, c) => x + num(rates[c]), 0), steady = REC.reduce((x, c) => x + Math.floor(num(rates[c]) * Math.max(0, num(rec.weeks[c]))), 0);
+    const a = el('recTotal_' + t), b = el('recSteady_' + t); if (a) a.textContent = total; if (b) b.textContent = steady;
+  }
+  const rw = el('recWeekly'); rw.innerHTML = '';
+  rw.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), ...VT.map(t => TH(VT_SHORT[t] + ' back', HELP.recBack)), ...VT.map(t => TH(VT_SHORT[t] + ' out', HELP.recOut))));
+  for (const w of weeks) {
+    const s = res && res.supply[w]; if (!s) continue;
+    rw.append(h('tr', {}, h('td', { class: 'l' }, fmt(w)), ...VT.map(t => nzTd(s.recBack[t])), ...VT.map(t => h('td', { class: 'comp' }, s.recOut[t]))));
   }
 }
 function refreshHighlights() { document.querySelectorAll('main input[type=number]').forEach(i => i.classList.toggle('nz', num(i.value) !== 0)); }
