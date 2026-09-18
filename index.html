@@ -41,6 +41,10 @@
   input.narrow { max-width: 110px; }
   input[type=number].nz { background: #fff6cc; border-color: #e6b800; font-weight: 700; color: #5c4a00; }
   td.nzc { background: #fff6cc; font-weight: 700; color: #5c4a00; }
+  tr.sub-row td { background: #f3f4f6; color: var(--muted); }
+  tr.sub-row input[type=number].nz { background: #e5e7eb; border-color: #cbd5e1; color: var(--muted); }
+  #routeTable input[type=text] { min-width: 180px; }
+  .excl { display: inline-block; margin-left: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; background: #e5e7eb; color: #4b5563; padding: 1px 5px; border-radius: 3px; }
   button { font: inherit; padding: 5px 10px; border: 1px solid var(--border); border-radius: 5px; background: #fff; cursor: pointer; }
   button:hover { background: var(--head); }
   button.small { padding: 2px 7px; font-size: 12px; }
@@ -112,6 +116,7 @@
   #tip .tt-row { display: flex; justify-content: space-between; gap: 14px; }
   #tip i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
   #tip .tt-total { border-top: 1px solid rgba(255,255,255,.3); margin-top: 4px; padding-top: 4px; font-weight: 600; }
+  #tip .muted { color: #b7c0c9; margin-top: 4px; font-style: italic; }
 
   /* chart */
   .chart { margin: 4px 0 18px; }
@@ -121,6 +126,13 @@
   .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
   .legend i.line { height: 3px; width: 20px; }
   .legend .sep { color: var(--border); }
+  .legend i.marker { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px currentColor; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-left: auto; }
+  .seg button { border: 0; border-radius: 0; background: #fff; color: var(--muted); padding: 4px 12px; font-size: 12px; font-weight: 600; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .chart .marker-hit { cursor: pointer; }
+  .chart .explode text { pointer-events: none; }
 
   /* results table */
   table.results { font-size: 14px; }
@@ -145,6 +157,10 @@
   .results-wrap { overflow: visible; }
   table.results thead th { position: sticky; top: var(--hdr-h, 88px); z-index: 5; box-shadow: inset 0 -1px 0 var(--border), inset 1px 0 0 var(--border); }
   table.results td.gap .gap-title { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  table.results td.returning .ret-block { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.35; }
+  table.results td.returning .ret-title { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; color: #7c3aed; }
+  table.results td.returning .ret-title.new { color: var(--accent); }
+  tr.oos-weeks td { background: #f7f9fb; }
   .pill { display: inline-block; min-width: 46px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 13px; }
   .pill.bad { background: #fdecea; color: var(--bad); }
   .pill.ok { background: #edf7ee; color: var(--ok); }
@@ -167,7 +183,7 @@
   #report .card h2 { font-size: 14px; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 2px solid var(--border); page-break-after: avoid; }
   #report table { font-size: 11px; margin-bottom: 8px; }
   #report th, #report td { padding: 3px 6px; }
-  #report .caret, #report .legend .muted, #report .toolbar, #report .intro { display: none; }
+  #report .caret, #report .legend .muted, #report .seg, #report .toolbar, #report .intro { display: none; }
   #report tr { page-break-inside: avoid; }
   #report table.results thead th { position: static; }
   #report .summary { grid-template-columns: repeat(6, 1fr); }
@@ -272,7 +288,7 @@
   <div class="tab" data-tab="cffo">
     <section class="card owner cffo">
       <h2 class="owner-title">CFFO <span class="role">Chief Fleet Officer – vehicles &amp; parking</span></h2>
-      <p class="intro">Enter the vehicles available for service today, where they can park, and the vehicles expected to enter service each week. Hover a column header for what it means.</p>
+      <p class="intro">Enter the vehicles available for service today, where they can park, the vehicles currently out of service (and when each status returns), and the new vehicles expected each week. Hover a column header for what it means.</p>
       <div class="grid grid-2">
         <div class="sub-card">
           <h3>Inputs · Parking <span class="hint">max vehicles parked per location; Type C only where allowed</span></h3>
@@ -288,8 +304,17 @@
         </div>
       </div>
       <div class="sub-card" style="margin-top:12px">
-        <h3>Pipeline · Vehicles <span class="hint">vehicles entering service each week (added Monday); exits as an average per week</span></h3>
-        <div class="row" id="avgVehOutRow" style="margin-bottom:8px"></div>
+        <h3>Pipeline 1 · Out-of-service vehicles <span class="hint">existing vehicles currently out of service by status; each status returns to service after its return time (added on the Monday of that week)</span></h3>
+        <div class="row" style="margin-bottom:8px">
+          <div class="field"><label>Status counts as of</label><input type="date" id="oosAsOf"></div>
+          <span class="muted" id="oosSummary"></span>
+        </div>
+        <div class="scroll"><table id="oosTable"></table></div>
+        <h4 style="margin:12px 0 6px">Returning to service (computed) <span class="hint">these vehicles are added to the fleet on the Monday shown</span></h4>
+        <div class="scroll"><table id="oosReturns"></table></div>
+      </div>
+      <div class="sub-card" style="margin-top:12px">
+        <h3>Pipeline 2 · New vehicles <span class="hint">new vehicles entering service each week (added Monday)</span></h3>
         <div class="scroll"><table id="vehiclePipeline"></table></div>
       </div>
     </section>
@@ -360,7 +385,8 @@
         <h3>Fixed assumptions</h3>
         <ul class="rules">
           <li>Usable count = floor(count × (1 − spare %)). Spare factor is set by each owner on their tab.</li>
-          <li>Weeks start Monday. Pipeline entries are added at the start of the week entered; exits are an average per week, accumulated and rounded down.</li>
+          <li>Weeks start Monday. Pipeline entries and returns are added at the start of the week entered; staff exits are an average per week, accumulated and rounded down.</li>
+          <li>Staff exits are permanent (average per week). Vehicles have no exit rate: instead, vehicles currently out of service are entered by status in Pipeline 1 and return after each status's return time (Long Term 12 wk, Out of Service 6 wk, For Vendor – OOS 5 wk, At Vendor 4 wk by default). New vehicles arrive via Pipeline 2.</li>
           <li>"To close the gap" is grossed up for the spare factor so it reads as head-count / vehicles to add.</li>
         </ul>
       </div>
@@ -374,8 +400,11 @@
 const VT = ['C', 'AN', 'AW', 'M'];
 const VT_LABEL = { C: 'Type C (Big Bus)', AN: 'Type A – no wheelchair', AW: 'Type A – wheelchair', M: 'Minivan' };
 const VT_SHORT = { C: 'Type C', AN: 'A non-WC', AW: 'A WC', M: 'Minivan' };
+// Out-of-service statuses (Pipeline 1). Order = longest return time first.
+const OOS = ['lt', 'oos', 'fvo', 'av'];
+const OOS_LABEL = { lt: 'Out of Service – Long Term', oos: 'Out of Service', fvo: 'For Vendor – Out of Service', av: 'At Vendor' };
 const VT_COLOR = { C: '#5b6b7f', AN: '#1f6feb', AW: '#7c3aed', M: '#0e9f9e' };
-const STORAGE_KEY = 'routeCapacityState.v5';
+const STORAGE_KEY = 'routeCapacityState.v9';
 
 function defaultRules() {
   return {
@@ -394,7 +423,12 @@ function defaultState() {
       { name: 'SI – Sharrots', capacity: 48, allowC: false },
     ],
     staff: { drivers: 884, attendants: 887, sparePct: 0, avgDrOut: 2, avgAtOut: 2 },
-    vehicles: { C: { present: 183, sparePct: 0, avgOut: 2 }, AN: { present: 633, sparePct: 0, avgOut: 2 }, AW: { present: 36, sparePct: 0, avgOut: 1 }, M: { present: 7, sparePct: 0, avgOut: 1 } },
+    vehicles: { C: { present: 185, sparePct: 0 }, AN: { present: 651, sparePct: 0 }, AW: { present: 36, sparePct: 0 }, M: { present: 15, sparePct: 0 } },
+    // Pipeline 1: existing vehicles out of service today, by status; each status returns after `weeks` weeks.
+    oos: {
+      asOf: '2026-09-17', weeks: { lt: 12, oos: 6, fvo: 5, av: 4 },
+      counts: { C: { lt: 3, oos: 1 }, AN: { lt: 1, oos: 47, fvo: 1, av: 17 }, AW: { oos: 2, av: 1 }, M: { oos: 3, av: 11 } },
+    },
     pipeline: {
       '2026-09-21': { ANIn: 21, drIn: 5, atIn: 5 },
       '2026-09-28': { ANIn: 20, drIn: 5, atIn: 5 },
@@ -404,15 +438,19 @@ function defaultState() {
       '2026-10-26': { drIn: 5, atIn: 5 },
     },
     routes: [
-      { date: '2026-09-01', C: 0, AN: 28, AW: 3, M: 0 }, { date: '2026-09-09', C: 0, AN: 26, AW: 0, M: 0 }, { date: '2026-09-10', C: 173, AN: 551, AW: 20, M: 7 },
+      { date: '2026-09-01', C: 0, AN: 28, AW: 3, M: 0 }, { date: '2026-09-09', C: 0, AN: 26, AW: 0, M: 0 }, { date: '2026-09-10', C: 173, AN: 540, AW: 20, M: 7 },
+      { date: '2026-09-10', C: 0, AN: 11, AW: 0, M: 0, sub: true, note: 'MW routes – subcontracted' },
       { date: '2026-09-11', C: 0, AN: 9, AW: 1, M: 0 }, { date: '2026-09-14', C: 2, AN: 10, AW: 3, M: 0 }, { date: '2026-09-15', C: 0, AN: 6, AW: 0, M: 0 },
       { date: '2026-09-16', C: 1, AN: 6, AW: 1, M: 0 }, { date: '2026-09-17', C: 0, AN: 24, AW: 0, M: 0 }, { date: '2026-09-21', C: 1, AN: 7, AW: 2, M: 0 },
       { date: '2026-09-22', C: 0, AN: 3, AW: 0, M: 0 }, { date: '2026-09-24', C: 0, AN: 1, AW: 0, M: 0 }, { date: '2026-10-01', C: 0, AN: 2, AW: 0, M: 0 },
       { date: '2026-10-05', C: 0, AN: 3, AW: 0, M: 0 }, { date: '2026-10-07', C: 0, AN: 2, AW: 0, M: 0 }, { date: '2026-10-08', C: 0, AN: 2, AW: 0, M: 0 },
-      { date: '2026-10-19', C: 0, AN: 3, AW: 0, M: 0 }, { date: '2026-10-21', C: 0, AN: 4, AW: 0, M: 0 },
+      { date: '2026-10-19', C: 0, AN: 3, AW: 0, M: 0 }, { date: '2026-10-21', C: 0, AN: 4, AW: 0, M: 0 }, { date: '2026-10-22', C: 0, AN: 3, AW: 0, M: 0 },
+      { date: '2026-10-23', C: 0, AN: 5, AW: 0, M: 0 }, { date: '2026-10-24', C: 0, AN: 1, AW: 0, M: 0 }, { date: '2026-10-26', C: 0, AN: 2, AW: 0, M: 0 },
+      { date: '2026-10-27', C: 0, AN: 2, AW: 0, M: 0 }, { date: '2026-10-28', C: 0, AN: 1, AW: 0, M: 0 }, { date: '2026-10-29', C: 0, AN: 2, AW: 0, M: 0 },
+      { date: '2026-10-30', C: 0, AN: 2, AW: 0, M: 0 }, { date: '2026-10-31', C: 0, AN: 1, AW: 0, M: 0 },
     ],
     rules: defaultRules(),
-    resultsFrom: '2026-09-14', horizonEnd: '2026-11-01', allDays: false, expanded: {}, tab: 'outputs',
+    resultsFrom: '2026-09-14', horizonEnd: '2026-11-01', allDays: false, expanded: {}, tab: 'outputs', chartMode: 'bars',
   };
 }
 
@@ -433,12 +471,18 @@ const HELP = {
   parkCap: 'Most vehicles that can be based at this location.',
   parkC: 'Tick if Type C (big) buses can be based here. Other types can park anywhere.',
   vehType: 'Vehicle type. Wheelchair = lift-equipped Type A.',
-  avail: 'Vehicles of this type in service today, excluding any permanently out of service.',
+  avail: 'Vehicles of this type available for service today. Do not include vehicles that are out of service or at a vendor – enter those in Pipeline 1 so they return on schedule.',
   spare: 'Percentage held back for maintenance / breakdowns. Not counted as usable.',
   usableToday: 'Available for service minus the spare factor (rounded down).',
   weekOf: 'Week starting this Monday. Entries take effect from that Monday.',
-  vehIn: 'Vehicles of this type entering service during that week (new deliveries, returns from repair).',
-  fleet: 'Resulting fleet that week: available today + all entries to date − average exits to date, capped by parking (raw count shown in brackets if capped).',
+  vehIn: 'New vehicles of this type entering service during that week (deliveries). Returns from out-of-service status belong in Pipeline 1, not here.',
+  fleet: 'Resulting fleet that week: available today + new vehicles to date (Pipeline 2) + out-of-service vehicles returned to date (Pipeline 1), capped by parking (raw count shown in brackets if capped).',
+  oosCount: 'Vehicles of this type currently in this status. These are NOT included in "Available for Service"; they re-enter the fleet when the status\'s return time elapses.',
+  oosTotal: 'All vehicles of this type currently out of service across the statuses.',
+  oosWeeks: 'Weeks after the as-of date before vehicles in this status return to service. Returns land on the Monday of that week.',
+  oosRetWeek: 'Week (Monday) on which vehicles in this status return. Returns dated before the first week shown are treated as already back.',
+  oosRetStatus: 'Status and its return time.',
+  returning: 'Vehicles added to the fleet in this period. Old = existing vehicles returning from out-of-service status (Pipeline 1). New = new vehicles entering service (Pipeline 2). Both land on the Monday of the week.',
   drIn: 'Drivers cleared and ready to work that week.',
   atIn: 'Attendants cleared and ready to work that week.',
   drAvail: 'Drivers available that week: today\'s count + cleared to date − average exits to date.',
@@ -448,6 +492,9 @@ const HELP = {
   routeDate: 'First day this group of routes runs.',
   routeCount: 'Number of routes starting that day that need this vehicle type.',
   routeTotal: 'All routes starting that day.',
+  routeSub: 'Tick if these routes are subcontracted to another company. They stay in the schedule for reference but are excluded from every capacity calculation.',
+  routeNote: 'Free text, e.g. the contractor or program name (MW).',
+  startingSub: 'Subcontracted routes starting in this period. Shown for reference only – not counted in routes serviced, shortfall or gap.',
 };
 
 /* ---------------- Date helpers ---------------- */
@@ -481,9 +528,27 @@ function applyDepotCap(raw, caps) {
   }
   return { fleet, overflow };
 }
+// Pipeline 1: week (Monday) on which each out-of-service status returns, and the vehicles returning that week by type.
+// Returns dated before the first week shown are treated as already back and land in the first week.
+function oosReturns(state, weeks) {
+  const o = state.oos || {}, asOf = o.asOf && parseISO(o.asOf) ? o.asOf : weeks[0];
+  const byWeek = {}, byStatus = {};
+  for (const s of OOS) {
+    let w = weekStart(addDays(asOf, 7 * Math.max(0, num((o.weeks || {})[s]))));
+    if (weeks.length && w < weeks[0]) w = weeks[0];
+    byStatus[s] = w;
+    for (const t of VT) {
+      const n = num(((o.counts || {})[t] || {})[s]); if (!n) continue;
+      byWeek[w] = byWeek[w] || { C: 0, AN: 0, AW: 0, M: 0 };
+      byWeek[w][t] += n;
+    }
+  }
+  return { byWeek, byStatus };
+}
 function buildWeeklySupply(state, weeks) {
   const caps = depotCaps(state), rules = state.rules;
-  const cumIn = { dr: 0, at: 0 }; for (const t of VT) cumIn[t] = 0;
+  const cumIn = { dr: 0, at: 0 }, cumBack = {}; for (const t of VT) { cumIn[t] = 0; cumBack[t] = 0; }
+  const returns = oosReturns(state, weeks).byWeek;
   const out = {};
   weeks.forEach((w, i) => {
     const p = state.pipeline[w] || {};
@@ -495,12 +560,18 @@ function buildWeeklySupply(state, weeks) {
     const attendants = Math.max(0, num(state.staff.attendants) + cumIn.at - atOut);
     const uDr = usable(drivers, state.staff.sparePct), uAt = usable(attendants, state.staff.sparePct);
     const pairs = rules.attendantRequired ? Math.min(uDr, uAt) : uDr;
-    const raw = {}, vOut = {};
-    for (const t of VT) { vOut[t] = Math.floor(num(state.vehicles[t].avgOut) * k); raw[t] = Math.max(0, num(state.vehicles[t].present) + cumIn[t] - vOut[t]); }
+    // Fleet = available today + new vehicles to date (Pipeline 2) + out-of-service vehicles that have returned (Pipeline 1).
+    const newIn = {}, oldBack = {}, raw = {};
+    for (const t of VT) {
+      newIn[t] = num(p[t + 'In']);
+      oldBack[t] = returns[w] ? returns[w][t] : 0;
+      cumBack[t] += oldBack[t];
+      raw[t] = Math.max(0, num(state.vehicles[t].present) + cumIn[t] + cumBack[t]);
+    }
     const { fleet, overflow } = rules.enforceParking ? applyDepotCap(raw, caps) : { fleet: { ...raw }, overflow: 0 };
     const usableV = {}; let usableTotal = 0;
     for (const t of VT) { usableV[t] = usable(fleet[t], state.vehicles[t].sparePct); usableTotal += usableV[t]; }
-    out[w] = { week: w, drivers, attendants, usableDrivers: uDr, usableAttendants: uAt, pairs, cumIn: { ...cumIn }, drOut, atOut, vOut, raw, fleet, overflow, usable: usableV, usableTotal };
+    out[w] = { week: w, drivers, attendants, usableDrivers: uDr, usableAttendants: uAt, pairs, cumIn: { ...cumIn }, cumBack: { ...cumBack }, drOut, atOut, newIn, oldBack, raw, fleet, overflow, usable: usableV, usableTotal };
   });
   return out;
 }
@@ -540,26 +611,32 @@ function gapToClose(state, r) {
 }
 
 function compute(state) {
-  const routes = state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date));
-  if (!routes.length) return null;
-  const startDate = routes[0].date;
-  const endDate = state.horizonEnd && state.horizonEnd >= startDate ? state.horizonEnd : addDays(routes[routes.length - 1].date, 14);
+  const all = state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const routes = all.filter(r => !r.sub);          // subcontracted routes are excluded from the analysis
+  const subs = all.filter(r => r.sub);
+  if (!all.length) return null;
+  const startDate = all[0].date;
+  const endDate = state.horizonEnd && state.horizonEnd >= startDate ? state.horizonEnd : addDays(all[all.length - 1].date, 14);
   const weeks = [];
   for (let w = weekStart(startDate); w <= weekStart(endDate); w = addDays(w, 7)) weeks.push(w);
   const supply = buildWeeklySupply(state, weeks);
   const days = [];
   const cum = { C: 0, AN: 0, AW: 0, M: 0 };
-  let ri = 0;
+  let ri = 0, si = 0, subTotal = 0;
   for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
     const added = { C: 0, AN: 0, AW: 0, M: 0 };
-    let hasNew = false;
+    let hasNew = false, subAdded = 0;
     while (ri < routes.length && routes[ri].date <= d) { for (const t of VT) { const n = num(routes[ri][t]); added[t] += n; if (n) hasNew = true; } ri++; }
+    while (si < subs.length && subs[si].date <= d) { const n = VT.reduce((x, t) => x + num(subs[si][t]), 0); subAdded += n; if (n) hasNew = true; si++; }
+    subTotal += subAdded;
     for (const t of VT) cum[t] = state.rules.cumulativeDemand ? cum[t] + added[t] : added[t];
     const w = weekStart(d), s = supply[w];
     const a = allocate(cum, s.usable, state.rules.can);
     const totalDemand = VT.reduce((x, t) => x + cum[t], 0);
     const serviceable = Math.min(a.vehicleFeasible, s.pairs);
-    const row = { date: d, week: w, added, hasNew, demand: { ...cum }, totalDemand, supply: s, ...a, serviceable, shortfall: totalDemand - serviceable, binding: bindingLabel(totalDemand, a.vehicleFeasible, s.pairs) };
+    const zero = { C: 0, AN: 0, AW: 0, M: 0 };
+    const returning = d === w ? { old: s.oldBack, new: s.newIn } : { old: zero, new: zero };   // vehicles land on the Monday
+    const row = { date: d, week: w, added, addedTotal: VT.reduce((x, t) => x + added[t], 0), subAdded, subTotal, hasNew, returning, demand: { ...cum }, totalDemand, supply: s, ...a, serviceable, shortfall: totalDemand - serviceable, binding: bindingLabel(totalDemand, a.vehicleFeasible, s.pairs) };
     row.gap = gapToClose(state, row);
     days.push(row);
   }
@@ -567,10 +644,11 @@ function compute(state) {
     const inWeek = days.filter(x => x.week === w);
     const last = inWeek[inWeek.length - 1];
     const added = { C: 0, AN: 0, AW: 0, M: 0 };
-    inWeek.forEach(x => VT.forEach(t => added[t] += x.added[t]));
-    return { ...last, weekAdded: added, weekEnd: addDays(w, 6), days: inWeek };
+    let subAdded = 0;
+    inWeek.forEach(x => { VT.forEach(t => added[t] += x.added[t]); subAdded += x.subAdded; });
+    return { ...last, weekAdded: added, weekAddedTotal: VT.reduce((x, t) => x + added[t], 0), weekSubAdded: subAdded, weekEnd: addDays(w, 6), days: inWeek, returning: { old: last.supply.oldBack, new: last.supply.newIn } };
   });
-  return { startDate, endDate, weeks, supply, days, weekly };
+  return { startDate, endDate, weeks, supply, days, weekly, subTotal };
 }
 function bindingLabel(demand, vehicleFeasible, pairs) {
   if (demand <= Math.min(vehicleFeasible, pairs)) return 'None';
@@ -603,10 +681,15 @@ function normalize(s) {
   const d = defaultState();
   const out = { ...d, ...s };
   out.staff = { ...d.staff, ...(s.staff || {}) };
-  out.vehicles = {}; for (const t of VT) out.vehicles[t] = { ...d.vehicles[t], ...((s.vehicles || {})[t] || {}) };
+  out.vehicles = {}; for (const t of VT) { const v = { ...d.vehicles[t], ...((s.vehicles || {})[t] || {}) }; delete v.avgOut; out.vehicles[t] = v; }
+  delete out.vehRepairWeeks;
+  const so = s.oos || {};
+  out.oos = { asOf: so.asOf || d.oos.asOf, weeks: { ...d.oos.weeks, ...(so.weeks || {}) }, counts: {} };
+  for (const t of VT) out.oos.counts[t] = { ...((so.counts || {})[t] || {}) };
   out.depots = Array.isArray(s.depots) ? s.depots : d.depots;
-  out.routes = Array.isArray(s.routes) ? s.routes : d.routes;
+  out.routes = (Array.isArray(s.routes) ? s.routes : d.routes).map(r => ({ ...r, sub: !!r.sub, note: r.note || '' }));
   out.pipeline = s.pipeline || {};
+  out.chartMode = s.chartMode === 'lines' ? 'lines' : 'bars';
   out.expanded = s.expanded || {};
   const dr = defaultRules();
   out.rules = { ...dr, ...(s.rules || {}) };
@@ -683,8 +766,21 @@ function renderStaffVehicles() {
       h('td', {}, numInput(v.sparePct, x => { v.sparePct = x; update(); }, { max: '100', step: '0.5' })),
       h('td', { class: 'comp', id: 'usableNow_' + k }, '')));
   }
-  const avgRow = el('avgVehOutRow'); avgRow.innerHTML = '';
-  for (const k of VT) { const v = state.vehicles[k]; avgRow.append(h('div', { class: 'field' }, h('label', {}, 'Avg ' + VT_SHORT[k] + ' exiting / week'), numInput(v.avgOut, x => { v.avgOut = x; update(); }, { step: '0.5', class: 'narrow' }))); }
+  renderOos();
+}
+function renderOos() {
+  const o = state.oos;
+  el('oosAsOf').value = o.asOf || '';
+  const t = el('oosTable'); t.innerHTML = '';
+  t.append(h('tr', {}, TH('Vehicle type', HELP.vehType, 'l'), ...OOS.map(s => TH(OOS_LABEL[s], HELP.oosCount)), TH('Total out', HELP.oosTotal)));
+  t.append(h('tr', { class: 'oos-weeks' }, h('td', { class: 'l muted' }, 'Returns after (weeks)'),
+    ...OOS.map(s => h('td', {}, numInput(o.weeks[s], v => { o.weeks[s] = v; update(); }, { step: '1', class: 'narrow', title: HELP.oosWeeks }))), h('td', {}, '')));
+  for (const k of VT) {
+    const c = o.counts[k] || (o.counts[k] = {});
+    t.append(h('tr', {}, h('td', { class: 'l' }, VT_LABEL[k]),
+      ...OOS.map(s => h('td', {}, numInput(c[s], v => { c[s] = v; update(); }))),
+      h('td', { class: 'comp', id: 'oosTotal_' + k }, '')));
+  }
 }
 function currentWeeks() {
   const routes = state.routes.filter(r => r.date).map(r => r.date).sort();
@@ -701,7 +797,7 @@ function renderPipeline() {
   const st = el('staffPipeline'); st.innerHTML = '';
   st.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), TH('Active and Eligible Drivers', HELP.drIn), TH('Active and Eligible Attendants', HELP.atIn), TH('Drivers avail.', HELP.drAvail), TH('Attend. avail.', HELP.atAvail), TH('Usable ' + crewWord(), HELP.pairs)));
   const vt = el('vehiclePipeline'); vt.innerHTML = '';
-  vt.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), ...VT.map(t => TH(VT_SHORT[t] + ' in', HELP.vehIn)), ...VT.map(t => TH(VT_SHORT[t] + ' fleet', HELP.fleet))));
+  vt.append(h('tr', {}, TH('Week of (Mon)', HELP.weekOf, 'l'), ...VT.map(t => TH(VT_SHORT[t] + ' new', HELP.vehIn)), ...VT.map(t => TH(VT_SHORT[t] + ' fleet', HELP.fleet))));
   for (const w of weeks) {
     st.append(h('tr', {}, h('td', { class: 'l' }, fmt(w)), pipelineCell(w, 'drIn'), pipelineCell(w, 'atIn'),
       h('td', { class: 'comp', 'data-w': w, 'data-f': 'drivers' }), h('td', { class: 'comp', 'data-w': w, 'data-f': 'attendants' }), h('td', { class: 'comp', 'data-w': w, 'data-f': 'pairs' })));
@@ -710,14 +806,16 @@ function renderPipeline() {
 }
 function renderRoutes() {
   const t = el('routeTable'); t.innerHTML = '';
-  t.append(h('tr', {}, TH('Week of (Mon)', HELP.routeWeek, 'l'), TH('Start date', HELP.routeDate, 'l'), ...VT.map(k => TH(VT_LABEL[k], HELP.routeCount)), TH('Total', HELP.routeTotal), h('th', {}, '')));
+  t.append(h('tr', {}, TH('Week of (Mon)', HELP.routeWeek, 'l'), TH('Start date', HELP.routeDate, 'l'), ...VT.map(k => TH(VT_LABEL[k], HELP.routeCount)), TH('Total', HELP.routeTotal), TH('Subcontracted', HELP.routeSub), TH('Note', HELP.routeNote, 'l'), h('th', {}, '')));
   state.routes.forEach((r, i) => {
     const total = VT.reduce((x, k) => x + num(r[k]), 0);
-    t.append(h('tr', {},
+    t.append(h('tr', { class: r.sub ? 'sub-row' : '' },
       h('td', { class: 'l muted' }, r.date ? fmt(weekStart(r.date)) : ''),
       h('td', { class: 'l' }, h('input', { type: 'date', value: r.date || '', onchange: e => { r.date = e.target.value; renderRoutes(); renderPipeline(); update(); } })),
       ...VT.map(k => h('td', {}, numInput(r[k], v => { r[k] = v; update(); }))),
-      h('td', { class: 'comp' }, total),
+      h('td', { class: 'comp' }, total, r.sub ? h('span', { class: 'excl' }, 'excluded') : null),
+      h('td', { class: 'c' }, h('input', { type: 'checkbox', checked: !!r.sub, onchange: e => { r.sub = e.target.checked; renderRoutes(); update(); } })),
+      h('td', { class: 'l' }, h('input', { type: 'text', value: r.note || '', placeholder: r.sub ? 'e.g. contractor name' : '', oninput: e => { r.note = e.target.value; update(); } })),
       h('td', { class: 'c' }, h('button', { class: 'small danger', onclick: () => { state.routes.splice(i, 1); renderRoutes(); renderPipeline(); update(); } }, '✕'))));
   });
 }
@@ -761,7 +859,7 @@ function renderResults(res) {
   const caps = depotCaps(state);
   const parkingShort = Math.max(0, last.totalDemand - caps.all, last.demand.C - caps.cOnly);
   sum.append(
-    stat('Routes to be serviced by ' + fmt(res.endDate), last.totalDemand),
+    stat('Routes to be serviced by ' + fmt(res.endDate), last.totalDemand, '', res.subTotal ? h('span', { class: 'muted' }, 'Excludes ' + res.subTotal + ' subcontracted route' + (res.subTotal === 1 ? '' : 's') + ' (see CSDO schedule)') : null),
     stat('Max routes by parking (CFFO)', caps.all, parkingShort > 0 ? 'bad' : 'ok', h('span', {}, caps.all + ' spaces total · ' + caps.cOnly + ' Type C-eligible', parkingShort > 0 ? h('div', { class: 'bad' }, 'Parking short by ' + parkingShort) : null)),
     stat('Routes serviceable at ' + fmt(res.endDate), last.serviceable, last.shortfall > 0 ? 'bad' : 'ok'),
     stat('Shortfall at ' + fmt(res.endDate), last.shortfall, last.shortfall > 0 ? 'bad' : 'ok'),
@@ -786,12 +884,12 @@ function renderResults(res) {
   renderChart(weeks);
 
   tbl.append(h('thead', {}, h('tr', {},
-    TH('Week / date', HELP.period, 'l'), TH('Routes starting this week / date', HELP.newRoutes), TH('Routes serviced', HELP.needed), TH('Usable vehicles', HELP.vehicles), TH('Max routes by parking', HELP.parkingMax),
+    TH('Week / date', HELP.period, 'l'), TH('Routes starting this week / date', HELP.newRoutes), TH('Routes serviced', HELP.needed), TH('Vehicles returning / arriving', HELP.returning), TH('Usable vehicles', HELP.vehicles),
     TH(state.rules.attendantRequired ? 'Staff crews' : 'Drivers', state.rules.attendantRequired ? HELP.staff : HELP.staffDriversOnly),
     TH('Routes serviceable', HELP.serviceable), TH('Vehicle shortfall', HELP.vShort), TH('Staff shortfall', HELP.sShort), TH('To close the gap', HELP.gap, 'l'))));
   const tbody = h('tbody', {}); tbl.append(tbody);
 
-  const cells = (r, added) => {
+  const cells = (r, added, subAdded) => {
     const s = r.supply;
     const newTotal = VT.reduce((x, t) => x + added[t], 0);
     const vShort = r.totalDemand - r.vehicleFeasible, sShort = Math.max(0, r.totalDemand - s.pairs);
@@ -802,12 +900,17 @@ function renderResults(res) {
     if (gg.attendants) staffLines.push('+' + gg.attendants + ' attendants');
     const gapBlock = (title, lines, color) => h('div', { class: 'gap-block' }, h('span', { class: 'gap-title', style: 'color:' + color }, title), lines.length ? lines.map(x => h('div', {}, x)) : h('div', { class: 'ok' }, 'none needed'));
     return [
-      h('td', {}, newTotal ? h('span', {}, String(newTotal), subLines(splitArr(added))) : h('span', { class: 'muted' }, '–')),
+      h('td', {}, newTotal || subAdded ? h('span', {}, h('span', { class: 'big ' + (newTotal ? 'accent' : 'muted') }, newTotal), newTotal ? subLines(splitArr(added)) : null,
+        subAdded ? h('span', { class: 'sub muted', title: HELP.startingSub }, '+' + subAdded + ' subcontracted (excluded)') : null) : h('span', { class: 'muted' }, '–')),
       h('td', {}, h('span', { class: 'big' }, r.totalDemand), subLines(splitArr(r.demand))),
+      (() => {
+        const ro = r.returning.old, rn = r.returning.new, oldT = VT.reduce((x, t) => x + ro[t], 0), newT = VT.reduce((x, t) => x + rn[t], 0);
+        if (!oldT && !newT) return h('td', {}, h('span', { class: 'muted' }, '–'));
+        return h('td', { class: 'returning' }, h('span', { class: 'big ok' }, '+' + (oldT + newT)),
+          oldT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title' }, 'Old (returning) ' + oldT), ...splitArr(ro).map(x => h('div', {}, x))) : null,
+          newT ? h('div', { class: 'ret-block' }, h('span', { class: 'ret-title new' }, 'New ' + newT), ...splitArr(rn).map(x => h('div', {}, x))) : null);
+      })(),
       h('td', {}, h('span', { class: 'big ' + (vShort > 0 ? 'bad' : '') }, s.usableTotal), subLines(splitArr(s.usable, false))),
-      h('td', {}, h('span', { class: 'big ' + (r.totalDemand > caps.all || r.demand.C > caps.cOnly ? 'bad' : '') }, caps.all),
-        subLines([caps.cOnly + ' Type C-eligible', ...(r.demand.C > caps.cOnly ? ['Type C routes exceed eligible parking by ' + (r.demand.C - caps.cOnly)] : []), ...(r.totalDemand > caps.all ? ['Routes exceed parking by ' + (r.totalDemand - caps.all)] : [])],
-          r.totalDemand > caps.all || r.demand.C > caps.cOnly ? 'bad' : '')),
       h('td', {}, h('span', { class: 'big ' + (sShort > 0 ? 'bad' : '') }, s.pairs), subLines([s.usableDrivers + ' drivers', ...(state.rules.attendantRequired ? [s.usableAttendants + ' attendants'] : [])])),
       h('td', {}, h('span', { class: 'big' }, r.serviceable)),
       h('td', {}, h('span', { class: 'pill ' + (vShort > 0 ? 'bad' : 'ok') }, vShort > 0 ? '−' + vShort : 'OK'), vShort > 0 ? subLines(['Routes without a vehicle:', ...splitArr(r.unserved)], 'bad') : null),
@@ -818,25 +921,116 @@ function renderResults(res) {
   for (const w of weeks) {
     const open = !!state.expanded[w.week];
     tbody.append(h('tr', { class: 'wk', onclick: () => { if (open) delete state.expanded[w.week]; else state.expanded[w.week] = true; update(); } },
-      h('td', { class: 'l' }, h('span', { class: 'caret' }, open ? '▾' : '▸'), fmt(w.week) + ' – ' + fmt(w.weekEnd)), ...cells(w, w.weekAdded)));
+      h('td', { class: 'l' }, h('span', { class: 'caret' }, open ? '▾' : '▸'), fmt(w.week) + ' – ' + fmt(w.weekEnd)), ...cells(w, w.weekAdded, w.weekSubAdded)));
     if (open) for (const d of w.days) {
       if (d.date < from) continue;
       if (!state.allDays && !d.hasNew && d.date !== d.week) continue;
-      tbody.append(h('tr', { class: 'day' }, h('td', { class: 'l' }, fmtDow(d.date)), ...cells(d, d.added)));
+      tbody.append(h('tr', { class: 'day' }, h('td', { class: 'l' }, fmtDow(d.date)), ...cells(d, d.added, d.subAdded)));
     }
   }
 }
 
+const ns = 'http://www.w3.org/2000/svg';
+const S = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+let exploded = {};   // line chart: which markers are currently exploded (key = series + week); session-only
+
 function renderChart(weeks) {
   const wrap = el('chartWrap'); wrap.innerHTML = '';
   if (!weeks.length) return;
+  const mode = state.chartMode === 'lines' ? 'lines' : 'bars';
+  const seg = h('div', { class: 'seg', title: 'Switch between stacked bars and a zoomed line view' },
+    h('button', { class: mode === 'bars' ? 'on' : '', onclick: () => { state.chartMode = 'bars'; save(); renderChart(weeks); } }, 'Bars'),
+    h('button', { class: mode === 'lines' ? 'on' : '', onclick: () => { state.chartMode = 'lines'; save(); renderChart(weeks); } }, 'Lines'));
+  if (mode === 'lines') renderLinesChart(wrap, weeks, seg); else renderBarsChart(wrap, weeks, seg);
+}
+
+function renderLinesChart(wrap, weeks, seg) {
+  const n = weeks.length, W = 1200, H = 440, mL = 60, mR = 24, mT = 30, mB = 78;
+  const iw = W - mL - mR, ih = H - mT - mB, cw = iw / n;
+  const vals = []; for (const w of weeks) vals.push(w.totalDemand, w.supply.usableTotal, w.supply.pairs, w.serviceable);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi === lo) { lo -= 10; hi += 10; }
+  const span = hi - lo, rawStep = span / 5, mag = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= rawStep) || mag * 10;
+  const minY = Math.max(0, Math.floor((lo - span * 0.12) / step) * step), maxY = Math.ceil((hi + span * 0.12) / step) * step;
+  const y = v => mT + ih - (v - minY) / (maxY - minY) * ih;
+  const x = i => mL + cw * (i + 0.5);
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Routes needed vs vehicle and staff capacity by week (line view, zoomed axis)' });
+  for (let v = minY; v <= maxY + 1e-9; v += step) { const yy = y(v); svg.append(S('line', { x1: mL, x2: W - mR, y1: yy, y2: yy, stroke: '#e1e5ea' })); svg.append(S('text', { x: mL - 8, y: yy + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#616e7c' }, Math.round(v))); }
+  svg.append(S('line', { x1: mL, x2: W - mR, y1: mT + ih, y2: mT + ih, stroke: '#9aa5b1' }));
+  if (minY > 0) svg.append(S('text', { x: mL, y: mT - 12, 'font-size': 11, fill: '#616e7c', 'font-style': 'italic' }, 'Axis starts at ' + minY + ' (zoomed to show the differences – not anchored at 0)'));
+  weeks.forEach((w, i) => { if (i % 2) svg.append(S('rect', { x: mL + cw * i, y: mT, width: cw, height: ih, fill: '#f7f9fb' })); });
+
+  // Series definitions. `parts` returns the constituent categories a marker explodes into.
+  const wk = w => 'Week of ' + fmt(w.week) + ' (at week end)';
+  const series = [
+    { key: 'need', label: 'Routes to be serviced (Need)', color: '#1f2933', dash: '', shape: 'circle', value: w => w.totalDemand,
+      parts: w => VT.filter(t => w.demand[t]).map(t => ({ label: VT_LABEL[t], v: w.demand[t], color: VT_COLOR[t] })) },
+    { key: 'veh', label: 'Usable vehicles', color: '#1f6feb', dash: '8 5', shape: 'square', value: w => w.supply.usableTotal,
+      parts: w => VT.filter(t => w.supply.usable[t]).map(t => ({ label: VT_LABEL[t], v: w.supply.usable[t], color: VT_COLOR[t] })) },
+    { key: 'staff', label: 'Usable staff ' + crewWord(), color: '#d97706', dash: '2 4', shape: 'diamond', value: w => w.supply.pairs,
+      parts: w => [{ label: 'Drivers', v: w.supply.usableDrivers, color: '#d97706' }].concat(state.rules.attendantRequired ? [{ label: 'Attendants', v: w.supply.usableAttendants, color: '#7c3aed' }] : []) },
+    { key: 'svc', label: 'Routes serviceable', color: '#1a7f37', dash: '', shape: 'none', value: w => w.serviceable, width: 2, parts: null },
+  ];
+  const marker = (s, cx, cy, r, fill) => {
+    if (s.shape === 'square') return S('rect', { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, fill, stroke: '#fff', 'stroke-width': 2 });
+    if (s.shape === 'diamond') return S('polygon', { points: `${cx},${cy - r - 1} ${cx + r + 1},${cy} ${cx},${cy + r + 1} ${cx - r - 1},${cy}`, fill, stroke: '#fff', 'stroke-width': 2 });
+    return S('circle', { cx, cy, r, fill, stroke: '#fff', 'stroke-width': 2 });
+  };
+  const explodeLayer = S('g', { class: 'explode' });
+  for (const s of series) {
+    const pts = weeks.map((w, i) => [x(i), y(s.value(w))]);
+    svg.append(S('polyline', { points: pts.map(p => p.join(',')).join(' '), fill: 'none', stroke: s.color, 'stroke-width': s.width || 2.5, 'stroke-dasharray': s.dash, 'stroke-linejoin': 'round' }));
+  }
+  weeks.forEach((w, i) => {
+    const cx = x(i);
+    // Label placement by rank so labels never sit on top of each other: highest value → above, lowest → below, middle → right.
+    const withMarkers = series.filter(s => s.shape !== 'none');
+    const ranked = withMarkers.slice().sort((a, b) => b.value(w) - a.value(w));
+    const posOf = {}; ranked.forEach((s, k) => posOf[s.key] = k === 0 ? 'above' : k === ranked.length - 1 ? 'below' : 'right');
+    for (const s of withMarkers) {
+      const v = s.value(w), cy = y(v), key = s.key + '|' + w.week, isOpen = !!exploded[key];
+      const g = S('g', { class: 'marker-hit' });
+      g.append(S('circle', { cx, cy, r: 14, fill: 'transparent' }));
+      g.append(marker(s, cx, cy, isOpen ? 8 : 6, s.color));
+      const lp = posOf[s.key], lx = lp === 'right' ? cx + 12 : cx, ly = lp === 'above' ? cy - 11 : lp === 'below' ? cy + 20 : cy + 4;
+      if (!isOpen) g.append(S('text', { x: lx, y: ly, 'text-anchor': lp === 'right' ? 'start' : 'middle', 'font-size': 12, 'font-weight': 600, fill: s.color, stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke' }, v));
+      const parts = s.parts(w);
+      hover(g, `<b>${s.label}</b><br>${wk(w)}` + parts.map(p => `<div class="tt-row"><span><i style="background:${p.color}"></i>${p.label}</span><span>${p.v}</span></div>`).join('') +
+        `<div class="tt-row tt-total"><span>${s.key === 'staff' && state.rules.attendantRequired ? 'Crews (lower of the two)' : 'Total'}</span><span>${v}</span></div><div class="muted">Click to ${isOpen ? 'collapse' : 'explode into categories'}</div>`);
+      g.addEventListener('click', e => { e.stopPropagation(); if (isOpen) delete exploded[key]; else exploded[key] = true; hideTip(); renderChart(weeks); });
+      svg.append(g);
+      if (isOpen) {
+        // Fan the constituent categories out beside the marker (positions are layout only – the zoomed axis cannot place them to scale).
+        const right = cx + 150 < W - mR, dir = right ? 1 : -1, ax = cx + dir * 34, rowH = 20, top = Math.min(Math.max(mT + 10, cy - (parts.length - 1) * rowH / 2), mT + ih - (parts.length - 1) * rowH - 10);
+        const boxW = 128, bx = right ? ax - 8 : ax - boxW + 8;
+        explodeLayer.append(S('rect', { x: bx, y: top - 14, width: boxW, height: parts.length * rowH + 8, rx: 6, fill: '#fff', 'fill-opacity': 0.94, stroke: s.color, 'stroke-width': 1 }));
+        parts.forEach((p, k) => {
+          const py = top + k * rowH;
+          explodeLayer.append(S('line', { x1: cx, y1: cy, x2: ax, y2: py, stroke: p.color, 'stroke-width': 1.5, 'stroke-opacity': 0.8 }));
+          explodeLayer.append(S('circle', { cx: ax, cy: py, r: 5, fill: p.color, stroke: '#fff', 'stroke-width': 1.5 }));
+          explodeLayer.append(S('text', { x: ax + dir * 10, y: py + 4, 'text-anchor': right ? 'start' : 'end', 'font-size': 11, fill: '#1f2933' }, `${p.v} ${p.label}`));
+        });
+      }
+    }
+    svg.append(S('text', { x: cx, y: mT + ih + 30, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, fill: '#1f2933' }, 'Wk ' + fmt(w.week)));
+    svg.append(S('text', { x: cx, y: mT + ih + 46, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, fill: w.shortfall > 0 ? '#c62828' : '#1a7f37' }, w.shortfall > 0 ? 'Short ' + w.shortfall : 'OK'));
+    if (w.shortfall > 0) svg.append(S('text', { x: cx, y: mT + ih + 60, 'text-anchor': 'middle', 'font-size': 11, fill: '#c62828' }, w.binding.replace('Vehicles', 'Veh')));
+  });
+  svg.append(explodeLayer);
+  svg.addEventListener('click', () => { if (Object.keys(exploded).length) { exploded = {}; renderChart(weeks); } });
+  const legend = h('div', { class: 'legend' }, h('span', { style: 'font-weight:600' }, 'Lines (axis zoomed to the data)'), h('span', { class: 'sep' }, '|'),
+    ...series.map(s => h('span', { style: 'color:' + s.color }, h('i', { class: s.shape === 'none' ? 'line' : 'marker', style: 'background:' + s.color }), h('span', { style: 'color:#1f2933' }, s.label))),
+    h('span', { class: 'muted' }, 'Hover a marker for details · click it to explode into categories · click elsewhere to collapse'), seg);
+  wrap.append(legend, svg);
+}
+
+function renderBarsChart(wrap, weeks, seg) {
   const n = weeks.length, W = 1200, H = 414, mL = 56, mR = 16, mT = 34, mB = 78;
   const iw = W - mL - mR, ih = H - mT - mB, cw = iw / n, bw = Math.min(46, cw * 0.24), gap = Math.max(4, bw * 0.2);
   let maxY = 0; for (const w of weeks) maxY = Math.max(maxY, w.totalDemand, w.supply.usableTotal, w.supply.pairs);
   maxY = Math.max(10, Math.ceil(maxY * 1.12 / 50) * 50);
   const y = v => mT + ih - v / maxY * ih;
-  const ns = 'http://www.w3.org/2000/svg';
-  const S = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
   const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Routes needed vs vehicle and staff capacity by week' });
   for (let i = 0; i <= 5; i++) { const v = Math.round(maxY * i / 5), yy = y(v); svg.append(S('line', { x1: mL, x2: W - mR, y1: yy, y2: yy, stroke: '#e1e5ea' })); svg.append(S('text', { x: mL - 8, y: yy + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#616e7c' }, v)); }
   svg.append(S('line', { x1: mL, x2: W - mR, y1: mT + ih, y2: mT + ih, stroke: '#9aa5b1' }));
@@ -882,7 +1076,7 @@ function renderChart(weeks) {
   });
   const legend = h('div', { class: 'legend' }, h('span', { style: 'font-weight:600' }, 'Bars: Need · Vehicles · Staff'), h('span', { class: 'sep' }, '|'),
     ...VT.map(t => h('span', {}, h('i', { style: 'background:' + VT_COLOR[t] }), VT_SHORT[t])),
-    h('span', {}, h('i', { style: 'background:#d97706' }), 'Staff ' + crewWord()), h('span', {}, h('i', { class: 'line', style: 'background:#1a7f37' }), 'Serviceable routes'), h('span', { class: 'muted' }, 'Hover a bar for details'));
+    h('span', {}, h('i', { style: 'background:#d97706' }), 'Staff ' + crewWord()), h('span', {}, h('i', { class: 'line', style: 'background:#1a7f37' }), 'Serviceable routes'), h('span', { class: 'muted' }, 'Hover a bar for details'), seg);
   wrap.append(legend, svg);
 }
 
@@ -902,10 +1096,13 @@ function renderAssumptions(res) {
       h('div', {}, h('h4', {}, 'Parking (total ' + caps.all + ', Type C-eligible ' + caps.cOnly + ')'),
         staticTable([['Parking location', HELP.parkName], ['Max vehicles', HELP.parkCap], ['Type C allowed', HELP.parkC]], state.depots.map(d => [d.name, d.capacity, h('td', { class: 'c' }, d.allowC ? 'Yes' : '–')]))),
       h('div', {}, h('h4', {}, 'Vehicles'),
-        staticTable([['Vehicle type', HELP.vehType], ['Available for Service', HELP.avail], ['Spare factor %', HELP.spare], ['Usable today', HELP.usableToday], ['Avg exiting / week', 'Average vehicles of this type leaving service each week (retirements, write-offs).']],
-          VT.map(t => [VT_LABEL[t], state.vehicles[t].present, state.vehicles[t].sparePct, comp(usable(state.vehicles[t].present, state.vehicles[t].sparePct)), state.vehicles[t].avgOut])))),
-    h('h4', {}, 'Vehicle pipeline and resulting fleet'),
-    staticTable([['Week of', HELP.weekOf], ...VT.map(t => [VT_SHORT[t] + ' in', HELP.vehIn]), ...VT.map(t => [VT_SHORT[t] + ' fleet', HELP.fleet])],
+        staticTable([['Vehicle type', HELP.vehType], ['Available for Service', HELP.avail], ['Spare factor %', HELP.spare], ['Usable today', HELP.usableToday]],
+          VT.map(t => [VT_LABEL[t], state.vehicles[t].present, state.vehicles[t].sparePct, comp(usable(state.vehicles[t].present, state.vehicles[t].sparePct))])))),
+    h('h4', {}, 'Pipeline 1 – out-of-service vehicles as of ' + fmt(state.oos.asOf || weeks[0]) + ' (return time in weeks)'),
+    staticTable([['Vehicle type', HELP.vehType], ...OOS.map(s => [OOS_LABEL[s] + ' (' + num(state.oos.weeks[s]) + ' wk)', HELP.oosCount]), ['Total out', HELP.oosTotal]],
+      VT.map(t => { const c = state.oos.counts[t] || {}; return [VT_LABEL[t], ...OOS.map(s => num(c[s])), comp(OOS.reduce((x, s) => x + num(c[s]), 0))]; })),
+    h('h4', {}, 'Pipeline 2 – new vehicles and resulting fleet (fleet includes returns from Pipeline 1)'),
+    staticTable([['Week of', HELP.weekOf], ...VT.map(t => [VT_SHORT[t] + ' new', HELP.vehIn]), ...VT.map(t => [VT_SHORT[t] + ' fleet', HELP.fleet])],
       weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), ...VT.map(t => num(p[t + 'In'])), ...VT.map(t => comp(s ? s.fleet[t] : ''))]; })));
   box.append(h('h3', { class: 'chro' }, 'CHRO – drivers & attendants'),
     h('div', { class: 'two' },
@@ -916,9 +1113,15 @@ function renderAssumptions(res) {
       h('div', {}, h('h4', {}, 'Staff pipeline and resulting availability'),
         staticTable([['Week of', HELP.weekOf], ['Active and Eligible Drivers', HELP.drIn], ['Active and Eligible Attendants', HELP.atIn], ['Drivers avail.', HELP.drAvail], ['Attend. avail.', HELP.atAvail], ['Usable ' + crewWord(), HELP.pairs]],
           weeks.map(w => { const p = state.pipeline[w] || {}, s = res && res.supply[w]; return [fmt(w), num(p.drIn), num(p.atIn), comp(s ? s.drivers : ''), comp(s ? s.attendants : ''), comp(s ? s.pairs : '')]; })))));
-  box.append(h('h3', { class: 'csdo' }, 'CSDO – route schedule'),
-    staticTable([['Week of', HELP.routeWeek], ['Start date', HELP.routeDate], ...VT.map(t => [VT_LABEL[t], HELP.routeCount]), ['Total', HELP.routeTotal]],
-      state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date)).map(r => [fmt(weekStart(r.date)), h('td', { class: 'l' }, fmtDow(r.date)), ...VT.map(t => num(r[t])), comp(VT.reduce((x, t) => x + num(r[t]), 0))])));
+  const subCount = state.routes.filter(r => r.sub).reduce((x, r) => x + VT.reduce((y, t) => y + num(r[t]), 0), 0);
+  box.append(h('h3', { class: 'csdo' }, 'CSDO – route schedule' + (subCount ? ' (' + subCount + ' subcontracted routes shown greyed – excluded from the analysis)' : '')),
+    staticTable([['Week of', HELP.routeWeek], ['Start date', HELP.routeDate], ...VT.map(t => [VT_LABEL[t], HELP.routeCount]), ['Total', HELP.routeTotal], ['Status', HELP.routeSub], ['Note', HELP.routeNote]],
+      state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date)).map(r => {
+        const cells = [fmt(weekStart(r.date)), h('td', { class: 'l' }, fmtDow(r.date)), ...VT.map(t => num(r[t])), comp(VT.reduce((x, t) => x + num(r[t]), 0)),
+          h('td', { class: 'c' }, r.sub ? h('span', { class: 'excl' }, 'subcontracted') : 'in-house'), h('td', { class: 'l muted' }, r.note || '')];
+        return cells;
+      })));
+  box.querySelectorAll('h3.csdo + table tr').forEach((tr, i) => { if (i === 0) return; const row = state.routes.filter(r => r.date).slice().sort((a, b) => a.date.localeCompare(b.date))[i - 1]; if (row && row.sub) tr.classList.add('sub-row'); });
   box.append(h('h3', { class: 'admin' }, 'Rules in effect (Admin)'), h('ul', { class: 'rules' }, ...rulesInEffect(state.rules).map(x => h('li', {}, x))));
 }
 
@@ -929,8 +1132,9 @@ function updateComputedCells(res) {
   for (const t of VT) { const c = el('usableNow_' + t); if (c) c.textContent = usable(state.vehicles[t].present, state.vehicles[t].sparePct); }
   const caps = depotCaps(state), fleetNow = VT.reduce((x, t) => x + num(state.vehicles[t].present), 0);
   el('depotSummary').textContent = 'Total parking ' + caps.all + ' (Type C-eligible ' + caps.cOnly + ') · present fleet ' + fleetNow + (num(state.vehicles.C.present) > caps.cOnly ? ' · Type C exceeds eligible capacity!' : '') + (fleetNow > caps.all ? ' · fleet exceeds total capacity!' : '');
-  const totalRoutes = state.routes.reduce((x, r) => x + VT.reduce((y, t) => y + num(r[t]), 0), 0);
-  el('routeSummary').textContent = state.routes.length + ' start dates · ' + totalRoutes + ' routes total';
+  const rowTotal = r => VT.reduce((y, t) => y + num(r[t]), 0);
+  const inHouse = state.routes.filter(r => !r.sub).reduce((x, r) => x + rowTotal(r), 0), subbed = state.routes.filter(r => r.sub).reduce((x, r) => x + rowTotal(r), 0);
+  el('routeSummary').textContent = state.routes.length + ' rows · ' + inHouse + ' routes in the analysis' + (subbed ? ' · ' + subbed + ' subcontracted (shown, excluded)' : '');
   document.querySelectorAll('td.comp[data-w]').forEach(td => {
     const s = res && res.supply[td.dataset.w];
     if (!s) { td.textContent = ''; return; }
@@ -938,6 +1142,20 @@ function updateComputedCells(res) {
     if (f.startsWith('fleet_')) { const t = f.slice(6); td.textContent = s.fleet[t] + (s.raw[t] !== s.fleet[t] ? ' (' + s.raw[t] + ')' : ''); td.title = s.raw[t] !== s.fleet[t] ? 'Capped by parking capacity; raw ' + s.raw[t] : ''; }
     else td.textContent = s[f];
   });
+  // Pipeline 1 computed cells: totals per type and the returning-by-week table
+  const o = state.oos, weeks = res ? res.weeks : currentWeeks();
+  let oosAll = 0;
+  for (const t of VT) { const n = OOS.reduce((x, s) => x + num((o.counts[t] || {})[s]), 0); oosAll += n; const c = el('oosTotal_' + t); if (c) c.textContent = n; }
+  const ret = oosReturns(state, weeks);
+  el('oosSummary').textContent = oosAll ? oosAll + ' vehicles out of service · all back by ' + fmt(Object.keys(ret.byWeek).sort().pop() || weeks[0]) : 'No vehicles out of service entered';
+  const rt = el('oosReturns'); rt.innerHTML = '';
+  rt.append(h('tr', {}, TH('Returning week of', HELP.oosRetWeek, 'l'), TH('Status', HELP.oosRetStatus, 'l'), ...VT.map(t => TH(VT_SHORT[t], HELP.oosCount)), TH('Total', HELP.oosTotal)));
+  const rows = OOS.map(s => ({ s, w: ret.byStatus[s] })).sort((a, b) => a.w.localeCompare(b.w) || OOS.indexOf(a.s) - OOS.indexOf(b.s));
+  for (const r of rows) {
+    const n = VT.reduce((x, t) => x + num((o.counts[t] || {})[r.s]), 0);
+    rt.append(h('tr', { class: n ? '' : 'muted' }, h('td', { class: 'l' }, fmt(r.w) + (r.w > (weeks[weeks.length - 1] || r.w) ? ' (after horizon)' : '')), h('td', { class: 'l' }, OOS_LABEL[r.s] + ' · ' + num(o.weeks[r.s]) + ' wk'),
+      ...VT.map(t => nzTd(num((o.counts[t] || {})[r.s]))), h('td', { class: 'comp' }, n)));
+  }
 }
 function refreshHighlights() { document.querySelectorAll('main input[type=number]').forEach(i => i.classList.toggle('nz', num(i.value) !== 0)); }
 
@@ -1099,6 +1317,7 @@ el('staffSpare').addEventListener('input', e => { state.staff.sparePct = e.targe
 el('avgDrOut').addEventListener('input', e => { state.staff.avgDrOut = e.target.value; update(); });
 el('avgAtOut').addEventListener('input', e => { state.staff.avgAtOut = e.target.value; update(); });
 el('horizonEnd').addEventListener('change', e => { state.horizonEnd = e.target.value; renderPipeline(); update(); });
+el('oosAsOf').addEventListener('change', e => { state.oos.asOf = e.target.value; update(); });
 el('resultsFrom').addEventListener('change', e => { state.resultsFrom = e.target.value; update(); });
 el('allDays').addEventListener('change', e => { state.allDays = e.target.checked; update(); });
 el('ruleAttendant').addEventListener('change', e => { state.rules.attendantRequired = e.target.checked; renderAdmin(); renderPipeline(); update(); });
